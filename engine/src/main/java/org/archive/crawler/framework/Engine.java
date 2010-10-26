@@ -32,6 +32,7 @@ import java.util.logging.Logger;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.FileFilterUtils;
+import org.archive.crawler.jmx.CrawlJobExporter;
 import org.archive.util.ArchiveUtils;
 
 /**
@@ -59,7 +60,12 @@ public class Engine {
     protected String profileCxmlPath = 
         "/org/archive/crawler/restlet/profile-crawler-beans.cxml";
     
+    protected CrawlJobExporter jmxExporter;
+    
     public Engine(File jobsDir) {
+        // start JMX exporter only when JMX is enabled (this property is JVM vendor dependent).
+        if (System.getProperty("com.sun.management.jmxremote") != null)
+            this.jmxExporter = new CrawlJobExporter(this);
         this.jobsDir = jobsDir;
         
         try {
@@ -92,6 +98,8 @@ public class Engine {
         // just in case...
         if (! jobsDir.exists()) {
             LOGGER.log(Level.SEVERE,"jobsDir has disappeared: "+jobsDir.toString());
+            if (jmxExporter != null)
+                jmxExporter.jobsChanged();
             return;
         }
 
@@ -110,6 +118,8 @@ public class Engine {
                         + " where job expected from: " + candidateFile);
             }
         }
+        if (jmxExporter != null)
+            jmxExporter.jobsChanged();
     }
 
     /**

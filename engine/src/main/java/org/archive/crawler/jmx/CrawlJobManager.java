@@ -1,0 +1,84 @@
+package org.archive.crawler.jmx;
+
+import org.archive.crawler.framework.CrawlJob;
+import org.archive.crawler.framework.Engine;
+
+/**
+ * MXBean implementation for managing {@link CrawlJob}.
+ * @author kenji
+ */
+public class CrawlJobManager implements CrawlJobMXBean {
+    private String name;
+    private Engine engine;
+    
+    public CrawlJobManager(String name, Engine engine) {
+        this.name = name;
+        this.engine = engine;
+    }
+    
+    protected CrawlJob getJob() {
+        return engine.getJob(name);
+    }
+    
+    /* (non-Javadoc)
+     * @see org.archive.crawler.jmx.CrawlJobMXBean#isRunning()
+     */
+    public boolean isRunning() {
+        CrawlJob j = getJob();
+        if (j == null)
+            return false;
+        else
+            return j.isRunning();
+    }
+
+    /* (non-Javadoc)
+     * @see org.archive.crawler.jmx.CrawlJobMXBean#getRateReport()
+     */
+    public RateReport getRateReport() {
+        CrawlJob j = getJob();
+        if (j == null) return null;
+        return new RateReport(j.rateReportData());
+    }
+    
+    public LoadReport getLoadReport() {
+        CrawlJob j = getJob();
+        if (j == null) return null;
+        return new LoadReport(j.loadReportData());
+    }
+    
+    /* (non-Javadoc)
+     * @see org.archive.crawler.jmx.CrawlJobMXBean#getUriTotalsReport()
+     */
+    public UriTotalsReport getUriTotalsReport() {
+        CrawlJob j = getJob();
+        if (j == null) return null;
+        return new UriTotalsReport(j.uriTotalsReportData());
+    }
+    
+    public SizeTotalsReport getSizeTotalsReport() {
+        CrawlJob j = getJob();
+        if (j == null) return null;
+        return new SizeTotalsReport(j.sizeTotalsReportData());
+    }
+    
+    public ElapsedReport getElapsedReport() {
+        CrawlJob j = getJob();
+        if (j == null) return null;
+        return new ElapsedReport(j.elapsedReportData());
+    }
+    
+    public ThreadReport getThreadReport() {
+        CrawlJob j = getJob();
+        if (j == null) return null;
+        return new ThreadReport(j.threadReportData());
+    }
+    
+    /* (non-Javadoc)
+     * @see org.archive.crawler.jmx.CrawlJobMXBean#getFrontierReport()
+     */
+    public FrontierReport getFrontierReport() {
+        CrawlJob j = getJob();
+        if (j == null) return null;
+        return new FrontierReport(j.frontierReportData());
+    }
+}
