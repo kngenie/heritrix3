@@ -1,7 +1,11 @@
 package org.archive.crawler.jmx;
 
+import java.io.IOException;
+
+import org.archive.crawler.framework.CrawlController;
 import org.archive.crawler.framework.CrawlJob;
 import org.archive.crawler.framework.Engine;
+import org.archive.crawler.reporting.StatisticsTracker;
 
 /**
  * MXBean implementation for managing {@link CrawlJob}.
@@ -80,5 +84,36 @@ public class CrawlJobManager implements CrawlJobMXBean {
         CrawlJob j = getJob();
         if (j == null) return null;
         return new FrontierReport(j.frontierReportData());
+    }
+    
+    @Override
+    public long getLastActivityTime() throws IOException {
+        CrawlJob j = getJob();
+        if (j == null) return 0;
+        return j.getLastActivityTime();
+    }
+    
+    @Override
+    public int getAlertCount() throws IOException {
+        CrawlJob j = getJob();
+        if (j == null) return 0;
+        return j.getAlertCount();
+    }
+    
+    @Override
+    public String getJobStatusDescription() throws IOException {
+        CrawlJob j = getJob();
+        if (j == null) return null;
+        return j.getJobStatusDescription();
+    }
+    
+    @Override
+    public CrawlStat getCrawlStat() throws IOException {
+        CrawlJob j = getJob();
+        if (j == null) return null;
+        CrawlController controller = j.getCrawlController();
+        if (controller == null) return null;
+        StatisticsTracker stat = controller.getStatisticsTracker();
+        return new CrawlStat(stat.getSnapshot());
     }
 }
