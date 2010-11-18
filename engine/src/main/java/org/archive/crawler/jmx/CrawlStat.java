@@ -1,6 +1,7 @@
 package org.archive.crawler.jmx;
 
 import org.archive.crawler.reporting.CrawlStatSnapshot;
+import org.archive.crawler.reporting.StatisticsTracker;
 
 /**
  * CrawlStat is a JavaBean compliant wrapper around {@link CrawlStatSnapshot}, which exposes
@@ -12,58 +13,68 @@ import org.archive.crawler.reporting.CrawlStatSnapshot;
  * @contributor Kenji Nagahashi
  */
 public class CrawlStat {
-    private CrawlStatSnapshot stat;
-    public CrawlStat(CrawlStatSnapshot stat) {
-        this.stat = stat;
+    private CrawlStatSnapshot snapshot;
+    private int totalThreads;
+    public CrawlStat(StatisticsTracker stats) {
+        this.snapshot = stats.getSnapshot();
+        this.totalThreads = stats.threadCount();
     }
     /**
      * time this snapshot was taken.
      * @return {@link System#currentTimeMillis()} value.
      */
     public long getTimestamp() {
-        return stat.timestamp;
+        return snapshot.timestamp;
     }
     public long getUrisFetched() {
-        return stat.urisFetched;
+        return snapshot.urisFetched;
     }
     /**
      * amounts of data downloaded.
      * @return bytes
      */
     public long getBytesProcessed() {
-        return stat.bytesProcessed;
+        return snapshot.bytesProcessed;
     }
     public long getDiscoveredUriCount() {
-        return stat.discoveredUriCount;
+        return snapshot.discoveredUriCount;
     }
     public long getQueuedUriCount() {
-        return stat.queuedUriCount;
+        return snapshot.queuedUriCount;
     }
     public long getFutureUriCount() {
-        return stat.futureUriCount;
+        return snapshot.futureUriCount;
     }
     public long getFinishedUriCount() {
-        return stat.finishedUriCount;
+        return snapshot.finishedUriCount;
     }
     /**
      * number of URIs successfully fetched.
      * @return non-negative long.
      */
     public long getDownloadedUriCount() {
-        return stat.downloadedUriCount;
+        return snapshot.downloadedUriCount;
     }
     public long getDownloadFailures() {
-        return stat.downloadFailures;
+        return snapshot.downloadFailures;
     }
     public long getDownloadDisregards() {
-        return stat.downloadDisregards;
+        return snapshot.downloadDisregards;
+    }
+    /**
+     * sum of {@link #getQueuedUriCount()}, {@link #busyThreads()} and
+     * {@link #getDownloadedUriCount()}.
+     * @return
+     */
+    public long getTotalUriCount() {
+        return snapshot.totalCount();
     }
     /**
      * time spent on crawling.
      * @return milli seconds
      */
     public long getElapsedMilliseconds() {
-        return stat.elapsedMilliseconds;
+        return snapshot.elapsedMilliseconds;
     }
     /**
      * this number is average over whole uptime, derived from
@@ -71,7 +82,7 @@ public class CrawlStat {
      * @return double pages per second
      */
     public double getDocsPerSecond() {
-        return stat.docsPerSecond;
+        return snapshot.docsPerSecond;
     }
     /**
      * this is average since the last sample.
@@ -79,14 +90,14 @@ public class CrawlStat {
      * @return double pages per second
      */
     public double getCurrentDocsPerSecond() {
-        return stat.currentDocsPerSecond;
+        return snapshot.currentDocsPerSecond;
     }
     /**
      * derived from bytesProcessed and crawlElapsedTime.
      * @return double kilo bytes per second
      */
     public double getTotalKiBPerSec() {
-        return stat.totalKiBPerSec;
+        return snapshot.totalKiBPerSec;
     }
     /**
      * this is an average since the last sample.
@@ -94,22 +105,25 @@ public class CrawlStat {
      * @return double kilo bytes per second
      */
     public double getCurrentKiBPerSec() {
-        return stat.currentKiBPerSec;
+        return snapshot.currentKiBPerSec;
     }
     /**
      * number of active toe threads.
      * @return non-negative integer
      */
     public int busyThreads() {
-        return stat.busyThreads;
+        return snapshot.busyThreads;
+    }
+    public int totalThreads() {
+        return totalThreads;
     }
     public float getCongestionRatio() {
-        return stat.congestionRatio;
+        return snapshot.congestionRatio;
     }
     public long getDeepestUri() {
-        return stat.deepestUri;
+        return snapshot.deepestUri;
     }
     public long getAverageDepth() {
-        return stat.averageDepth;
+        return snapshot.averageDepth;
     }
 }

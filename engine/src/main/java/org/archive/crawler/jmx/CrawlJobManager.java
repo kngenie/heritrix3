@@ -114,6 +114,33 @@ public class CrawlJobManager implements CrawlJobMXBean {
         CrawlController controller = j.getCrawlController();
         if (controller == null) return null;
         StatisticsTracker stat = controller.getStatisticsTracker();
-        return new CrawlStat(stat.getSnapshot());
+        return new CrawlStat(stat);
     }
+
+    @Override
+    public int getMaxToeThreads() throws IOException {
+        CrawlJob j = getJob();
+        if (j == null) return 0;
+        CrawlController controller = j.getCrawlController();
+        if (controller == null) {
+            // XXX should throw more specific exception?
+            throw new IOException("no controller");
+        }
+        return controller.getMaxToeThreads();
+    }
+
+    @Override
+    public void setMaxToeThreads(int maxToeThreads) throws IOException {
+        CrawlJob j = getJob();
+        if (j == null) {
+            throw new IOException("job \"" + name + "\" no longer exists");
+        }
+        CrawlController controller = j.getCrawlController();
+        if (controller == null) {
+            // XXX should throw more specific exception?
+            throw new IOException("no controller");
+        }
+        controller.setMaxToeThreads(maxToeThreads);
+    }
+    
 }

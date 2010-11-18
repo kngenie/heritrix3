@@ -53,4 +53,8 @@ public interface CrawlJobMXBean {
     public long getLastActivityTime() throws IOException;
 
     public CrawlStat getCrawlStat() throws IOException;
+    
+    public int getMaxToeThreads() throws IOException;
+    
+    public void setMaxToeThreads(int maxToeThreads) throws IOException;
 }
