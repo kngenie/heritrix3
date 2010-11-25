@@ -83,7 +83,9 @@ public class CrawlJobManager implements CrawlJobMXBean {
     public FrontierReport getFrontierReport() {
         CrawlJob j = getJob();
         if (j == null) return null;
-        return new FrontierReport(j.frontierReportData());
+        CrawlController c = j.getCrawlController();
+        if (c == null) return null;
+        return new FrontierReport(c.getFrontier());
     }
     
     @Override
@@ -113,8 +115,7 @@ public class CrawlJobManager implements CrawlJobMXBean {
         if (j == null) return null;
         CrawlController controller = j.getCrawlController();
         if (controller == null) return null;
-        StatisticsTracker stat = controller.getStatisticsTracker();
-        return new CrawlStat(stat);
+        return new CrawlStat(controller);
     }
 
     @Override

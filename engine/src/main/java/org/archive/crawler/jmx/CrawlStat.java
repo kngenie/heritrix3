@@ -1,21 +1,30 @@
 package org.archive.crawler.jmx;
 
+import org.archive.crawler.framework.CrawlController;
 import org.archive.crawler.reporting.CrawlStatSnapshot;
 import org.archive.crawler.reporting.StatisticsTracker;
 
 /**
  * CrawlStat is a JavaBean compliant wrapper around {@link CrawlStatSnapshot}, which exposes
  * getters for those stats and hides unwanted methods.
- * <p>TODO it would be more efficient for {@link CrawlJobManager} to create CompositeData directly
- * rather than relying on JMX framework to do it.</p>
+ * <p>TODO I'm dropping this class in favor of more direct {@link FrontierReport} and others, because
+ * CrawlStat replies on {@link StatisticsTracker} and {@link CrawlStatSnapshot}, that implement H3's own
+ * stat tracking mechanism. As JMX is meant for use with external stat tracking mechanism, H3 JMX interface
+ * should not rely on those classes. This class is kept as extension of {@link FrontierReport} to
+ * support existing monitoring code using this interface.</p>
+ * <p>TODO urisFetched, byteProcessed, elapsedMilliseconds, busyThreads, and
+ * totalThreads are only found in this class and still useful. We need to find a new
+ * home for these stats before entirly dropping this class.</p>
  * @see CrawlJobMXBean
  * @see CrawlJobManager
  * @contributor Kenji Nagahashi
  */
-public class CrawlStat {
+public class CrawlStat extends FrontierReport {
     private CrawlStatSnapshot snapshot;
     private int totalThreads;
-    public CrawlStat(StatisticsTracker stats) {
+    public CrawlStat(CrawlController controller) {
+        super(controller.getFrontier());
+        StatisticsTracker stats = controller.getStatisticsTracker();
         this.snapshot = stats.getSnapshot();
         this.totalThreads = stats.threadCount();
     }
@@ -35,31 +44,6 @@ public class CrawlStat {
      */
     public long getBytesProcessed() {
         return snapshot.bytesProcessed;
-    }
-    public long getDiscoveredUriCount() {
-        return snapshot.discoveredUriCount;
-    }
-    public long getQueuedUriCount() {
-        return snapshot.queuedUriCount;
-    }
-    public long getFutureUriCount() {
-        return snapshot.futureUriCount;
-    }
-    public long getFinishedUriCount() {
-        return snapshot.finishedUriCount;
-    }
-    /**
-     * number of URIs successfully fetched.
-     * @return non-negative long.
-     */
-    public long getDownloadedUriCount() {
-        return snapshot.downloadedUriCount;
-    }
-    public long getDownloadFailures() {
-        return snapshot.downloadFailures;
-    }
-    public long getDownloadDisregards() {
-        return snapshot.downloadDisregards;
     }
     /**
      * sum of {@link #getQueuedUriCount()}, {@link #busyThreads()} and
@@ -116,14 +100,5 @@ public class CrawlStat {
     }
     public int totalThreads() {
         return totalThreads;
-    }
-    public float getCongestionRatio() {
-        return snapshot.congestionRatio;
-    }
-    public long getDeepestUri() {
-        return snapshot.deepestUri;
-    }
-    public long getAverageDepth() {
-        return snapshot.averageDepth;
     }
 }
