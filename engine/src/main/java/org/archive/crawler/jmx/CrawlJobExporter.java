@@ -43,6 +43,9 @@ public class CrawlJobExporter {
         
         Set<String> names = new HashSet<String>(exportedJobs.keySet());
         for (Entry<String, CrawlJob> ent : jobConfigs.entrySet()) {
+            // ignore profiles (templates) - no use for monitoring
+            if (ent.getValue().isProfile())
+                continue;
             if (exportedJobs.containsKey(ent.getKey())) {
                 // already exported and continues to be exported.
                 names.remove(ent.getKey());
