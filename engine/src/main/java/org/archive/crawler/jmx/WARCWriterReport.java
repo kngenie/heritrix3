@@ -22,9 +22,14 @@ import java.beans.BeanInfo;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 
+import javax.management.ObjectName;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.CompositeDataSupport;
 import javax.management.openmbean.CompositeDataView;
@@ -56,19 +61,34 @@ public class WARCWriterReport extends ReportBean implements CompositeDataView {
         return false;
     }
     
-    // order must match ALLOWED_CLASSNAMES_LIST.
+    // order of elements in OPENTYPES, PRIMITIVE_CLASSES, COMPLEX_CLASSES must match.
     private static final OpenType<?> OPENTYPES[] = {
         SimpleType.VOID, SimpleType.BOOLEAN, SimpleType.CHARACTER, SimpleType.BYTE,
         SimpleType.SHORT, SimpleType.INTEGER, SimpleType.LONG, SimpleType.FLOAT, 
         SimpleType.DOUBLE, SimpleType.STRING, SimpleType.BIGDECIMAL, SimpleType.BIGINTEGER,
-        SimpleType.DATE, SimpleType.OBJECTNAME,
-        null, // CompositeData
-        null // TabularData
+        SimpleType.DATE, SimpleType.OBJECTNAME
     };
+    private static final List<Class<?>> PRIMITIVE_CLASSES = Arrays.asList(new Class<?>[] {
+        void.class, boolean.class, char.class, byte.class,
+        short.class, int.class, long.class, float.class,
+        double.class
+    });
+    private static final List<Class<?>> COMPLEX_CLASSES = Arrays.asList(new Class<?>[] {
+       Void.class, Boolean.class, Character.class, Byte.class,
+       Short.class, Integer.class, Long.class, Float.class,
+       Double.class, String.class, BigDecimal.class, BigInteger.class,
+       Date.class, ObjectName.class
+    });
 
     protected OpenType<?> getOpenType(Class<?> type) {
         // sucks... is there a better way??
-        int idx = OpenType.ALLOWED_CLASSNAMES_LIST.indexOf(type.getName());
+        // TODO: support array types
+        // CompositeData and TabularData are also allowed types, but they needs special
+        // handling as they are interfaces. java.util.Date also sub-class-able, so want
+        // to do instanceof comparison.
+        int idx = type.isPrimitive() ?
+                PRIMITIVE_CLASSES.indexOf(type) :
+                    COMPLEX_CLASSES.indexOf(type);
         if (idx == -1) return null;
         return OPENTYPES[idx];
     }
