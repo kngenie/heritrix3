@@ -1,11 +1,14 @@
 package org.archive.crawler.jmx;
 
 import java.io.IOException;
+import java.util.Map;
 
 import org.archive.crawler.framework.CrawlController;
 import org.archive.crawler.framework.CrawlJob;
 import org.archive.crawler.framework.Engine;
-import org.archive.crawler.reporting.StatisticsTracker;
+import org.archive.modules.fetcher.FetchHTTP;
+import org.archive.modules.writer.WARCWriterProcessor;
+import org.springframework.context.ApplicationContext;
 
 /**
  * MXBean implementation for managing {@link CrawlJob}.
@@ -22,6 +25,12 @@ public class CrawlJobManager implements CrawlJobMXBean {
     
     protected CrawlJob getJob() {
         return engine.getJob(name);
+    }
+    protected CrawlJob getJobChecked() throws IOException {
+        CrawlJob j = engine.getJob(name);
+        if (j == null)
+            throw new IOException("job \"" + name + "\" no longer exists");
+        return j;
     }
     
     /* (non-Javadoc)
@@ -132,16 +141,37 @@ public class CrawlJobManager implements CrawlJobMXBean {
 
     @Override
     public void setMaxToeThreads(int maxToeThreads) throws IOException {
-        CrawlJob j = getJob();
-        if (j == null) {
-            throw new IOException("job \"" + name + "\" no longer exists");
-        }
+        CrawlJob j = getJobChecked();
         CrawlController controller = j.getCrawlController();
         if (controller == null) {
             // XXX should throw more specific exception?
             throw new IOException("no controller");
         }
         controller.setMaxToeThreads(maxToeThreads);
+    }
+    /**
+     * returns a bean of class {@code beanType} from {@link CrawlJob}'s {@link ApplicationContext}.
+     * <p>if there are multiple instances of {@code beanType}, returns arbitrarily chosen one.</p>  
+     * @param <T>
+     * @param beanType class of bean to get
+     * @return instance of beanType, or null if none exists
+     * @throws IOException job does not exist
+     */
+    protected <T> T getBean1(Class<T> beanType) throws IOException {
+        CrawlJob j = getJobChecked();
+        ApplicationContext ac = j.getJobContext();
+        if (ac == null) return null;
+        Map<?,?> warcWriters = ac.getBeansOfType(beanType);
+        if (warcWriters.isEmpty())
+            return null;
+        else
+            return beanType.cast(warcWriters.values().iterator().next());
+    }
+    
+    public WARCWriterReport getWarcWriter() throws IOException {
+        WARCWriterProcessor bean = getBean1(WARCWriterProcessor.class);
+        if (bean == null) return null;
+        return new WARCWriterReport(bean);
     }
     
 }

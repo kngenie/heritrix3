@@ -3,7 +3,8 @@ package org.archive.crawler.jmx;
 import java.io.IOException;
 
 import org.archive.crawler.framework.CrawlJob;
-import org.archive.crawler.reporting.CrawlStatSnapshot;
+import org.archive.modules.fetcher.FetchHTTP;
+import org.archive.modules.writer.WARCWriterProcessor;
 
 /**
  * MXBean interface for offering statistics of crawl jobs.
@@ -57,4 +58,9 @@ public interface CrawlJobMXBean {
     public int getMaxToeThreads() throws IOException;
     
     public void setMaxToeThreads(int maxToeThreads) throws IOException;
+
+    // tentative interfaces
+    
+    public WARCWriterReport getWarcWriter() throws IOException;
+
 }
