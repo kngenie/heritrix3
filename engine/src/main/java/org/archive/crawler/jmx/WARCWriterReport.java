@@ -123,7 +123,7 @@ public class WARCWriterReport extends ReportBean implements CompositeDataView {
                     values.add(get.invoke(target, new Object[0]));
                 }
             }
-            System.out.format("names=%s types=%s values=%s\n", itemNames, itemTypes, values);
+            //System.out.format("names=%s types=%s values=%s\n", itemNames, itemTypes, values);
             CompositeType xct =
                 new CompositeType(ct.getTypeName(),
                         ct.getDescription(),
