@@ -54,6 +54,7 @@ import org.archive.crawler.framework.CrawlController.StopCompleteEvent;
 import org.archive.crawler.reporting.AlertThreadGroup;
 import org.archive.crawler.reporting.CrawlStatSnapshot;
 import org.archive.crawler.reporting.StatisticsTracker;
+import org.archive.crawler.util.CrawledBytesHistotable;
 import org.archive.spring.ConfigPath;
 import org.archive.spring.ConfigPathConfigurer;
 import org.archive.spring.PathSharingContext;
@@ -86,8 +87,13 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         Logger.getLogger(CrawlJob.class.getName());
 
     File primaryConfig; 
-    PathSharingContext ac; 
-    volatile boolean acReady;
+    PathSharingContext ac;
+    
+    volatile int acState;
+    public static final int AC_NONE = 0;
+    public static final int AC_READY = 1;
+    public static final int AC_TEARINGDOWN = 2;
+    
     int launchCount; 
     boolean isLaunchInfoPartial;
     DateTime lastLaunch;
@@ -359,7 +365,7 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         return ac != null;
     }
     public boolean isApplicationContextReady() {
-        return ac != null && acReady;
+        return ac != null && acState == AC_READY;
     }
     
     /**
@@ -381,7 +387,7 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
                LOGGER.log(Level.WARNING,err.toString());
             }
         }
-        acReady = true;
+        acState = AC_READY;
     }
 
     /**
@@ -550,20 +556,20 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
     public synchronized boolean teardown() {
         CrawlController cc = getCrawlController();
         if (cc != null) {
-            acReady = false;
-                cc.requestCrawlStop();
-                needTeardown = true;
-                
-                // wait up to 3 seconds for stop
-                for(int i = 0; i < 11; i++) {
-                    if(cc.isStopComplete()) {
-                        break;
-                    }
-                    try {
-                        Thread.sleep(300);
-                    } catch (InterruptedException e) {
-                        // do nothing
-                    }
+            acState = AC_TEARINGDOWN;
+            cc.requestCrawlStop();
+            needTeardown = true;
+            
+            // wait up to 3 seconds for stop
+            for(int i = 0; i < 11; i++) {
+                if(cc.isStopComplete()) {
+                    break;
+                }
+                try {
+                    Thread.sleep(300);
+                } catch (InterruptedException e) {
+                    // do nothing
+                }
             }
             
             if (cc.isStopComplete()) {
@@ -954,8 +960,10 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
     public String getJobStatusDescription() {
         if(!hasApplicationContextNoBlock()) {
             return "Unbuilt";
-        } else if (!acReady) {
+        } else if (acState == AC_NONE) {
             return "Initializing";
+        } else if (acState == AC_TEARINGDOWN) {
+            return "Tearing Down";
         } else if(isRunning()) {
             return "Active: "+getCrawlController().getState();
         } else if(isLaunchable()){
