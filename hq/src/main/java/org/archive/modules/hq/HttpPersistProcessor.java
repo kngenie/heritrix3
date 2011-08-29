@@ -88,8 +88,10 @@ public class HttpPersistProcessor extends Processor implements Lifecycle, FetchS
     public class Submitter implements Runnable {
         @Override
         public void run() {
-            CrawlURI[] bucket = new CrawlURI[finishedBatchSize + finishedBatchSizeMargin];
+            CrawlURI[] bucket = null;
             while (running || !finishedQueue.isEmpty()) {
+                if (bucket == null || bucket.length != (finishedBatchSize + finishedBatchSizeMargin))
+                    bucket = new CrawlURI[finishedBatchSize + finishedBatchSizeMargin];
                 Arrays.fill(bucket, null);
                 int count = 0;
                 for (int i = 0; i < bucket.length; i++) {
