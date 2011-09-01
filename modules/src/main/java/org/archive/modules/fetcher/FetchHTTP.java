@@ -324,7 +324,7 @@ public class FetchHTTP extends Processor implements Lifecycle {
     
     {
         // same default value found in HeritrixHttpMethodRetryHandler
-        setMaxHttpRetires(10);
+        setMaxHttpRetries(10);
     }
     public int getMaxHttpRetries() {
         return (Integer)kp.get("maxHttpRetries");
@@ -334,7 +334,7 @@ public class FetchHTTP extends Processor implements Lifecycle {
      * passed to the constructor of {@link HeritrixHttpMethodRetryHandler}.
      * @param maxHttpRetires maximum number of retries allowed.
      */
-    public void setMaxHttpRetires(int maxHttpRetries) {
+    public void setMaxHttpRetries(int maxHttpRetries) {
         kp.put("maxHttpRetries", maxHttpRetries);
     }
 
