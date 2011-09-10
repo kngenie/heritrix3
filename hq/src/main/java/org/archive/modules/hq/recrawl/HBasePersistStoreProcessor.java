@@ -164,13 +164,31 @@ public class HBasePersistStoreProcessor extends HBasePersistProcessor implements
         return true;
     }
     
+    public static final int PUT_RETRY_INTERVAL_MS = 10*1000;
+    
     @Override
     protected void innerProcess(CrawlURI uri) {
         Put p = createFinishedRequest(uri);
-        try {
-            client.put(p);
-        } catch (IOException ex) {
-            logger.warning(uri + " not stored due to an error: " + ex);
-        }
+        int retry = 0;
+        do {
+            try {
+                client.put(p);
+                break;
+            } catch (IOException ex) {
+                logger.warning(uri + " put for " + uri + " failed" + 
+                        (retry > 0 ? "(retry " + retry + ")" : "") + ": " + ex);
+            } catch (NullPointerException ex) {
+                // HTable.put() throws NullPointerException while connection is lost.
+                logger.warning(uri + " put for " + uri + " failed" + 
+                        (retry > 0 ? "(retry " + retry + ")" : "") + ": " + ex);
+            }
+            retry++;
+            try {
+                Thread.sleep(PUT_RETRY_INTERVAL_MS);
+            } catch (InterruptedException ex) {
+                logger.warning("thread interrupted. aborting retry for " + uri);
+                break;
+            }
+        } while (isRunning());
     }
 }
