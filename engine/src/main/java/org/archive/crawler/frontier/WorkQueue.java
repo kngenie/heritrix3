@@ -229,7 +229,7 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
      * URI for crawling, and continues until it is deactivated (for example, 
      * for session-budget reasons). 
      */
-    public void considerActive() {
+    public synchronized void considerActive() {
         if(active) {
             return; 
         }
