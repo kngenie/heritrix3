@@ -210,14 +210,22 @@ public class HttpHeadquarterAdapter {
             if (logger.isLoggable(Level.FINE)) {
                 logger.fine("submitting " + juris.length() + " URIs to mfinished");
             }
+            int statusCode = -1;
+            String reason = null;
             String responseText = null;
             synchronized (httpClient1) {
                 HttpResponse response = httpClient1.execute(post);
+                StatusLine sl = response.getStatusLine();
+                statusCode = sl.getStatusCode();
+                reason = sl.getReasonPhrase();
                 HttpEntity re = response.getEntity();
                 responseText = EntityUtils.toString(re);
             }
             if (logger.isLoggable(Level.FINE))
-                logger.fine("mfinished([...])->" + responseText);
+                logger.fine("mfinished([...])->" + statusCode + " " + responseText);
+            if (statusCode != 200) {
+                throw new IOException("server response " + statusCode + " " + reason);
+            }
             try {
                 JSONObject jres = new JSONObject(new JSONTokener(responseText));
                 int processed = jres.optInt("processed", 0);
@@ -423,14 +431,25 @@ public class HttpHeadquarterAdapter {
             if (logger.isLoggable(Level.FINE)) {
                 logger.fine("submitting " + juris.length() + " URIs to discovered");
             }
+            int statusCode = -1;
+            String reason = null;
             String responseText = null;
             synchronized (httpClient2) {
                 HttpResponse response = httpClient2.execute(post);
+                StatusLine sl = response.getStatusLine();
+                statusCode = sl.getStatusCode();
+                reason = sl.getReasonPhrase();
                 HttpEntity re = response.getEntity();
                 responseText = EntityUtils.toString(re);
             }
-            if (logger.isLoggable(Level.FINE))
-                logger.fine("discovered([...])->" + responseText);
+            if (logger.isLoggable(Level.FINE)) {
+                logger.fine("discovered([...])->" + statusCode + ": " + responseText);
+            }
+            if (statusCode != 200) {
+                // caller should retry for non-200 response (such as 503 Service
+                // Temporarily Unavailable)
+                throw new IOException("server response " + statusCode + " " + reason);
+            }
             try {
                 JSONObject jres = new JSONObject(new JSONTokener(responseText));
                 int processed = jres.optInt("processed", 0);
