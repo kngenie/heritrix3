@@ -26,6 +26,15 @@ public class CrawlJobManager implements CrawlJobMXBean {
     protected CrawlJob getJob() {
         return engine.getJob(name);
     }
+    protected CrawlController getCrawlController() {
+        CrawlJob j = getJob();
+        if (j == null) return null;
+        // CrawlJob#getCrawlController can block pretty long if ApplicationContext#start()
+        // takes very long to finish (often happens with broken BDB). So check if appctx is
+        // ready before calling getCrawlController().
+        if (!j.isApplicationContextReady()) return null;
+        return j.getCrawlController();
+    }
     protected CrawlJob getJobChecked() throws IOException {
         CrawlJob j = engine.getJob(name);
         if (j == null)
@@ -90,9 +99,7 @@ public class CrawlJobManager implements CrawlJobMXBean {
      * @see org.archive.crawler.jmx.CrawlJobMXBean#getFrontierReport()
      */
     public FrontierReport getFrontierReport() {
-        CrawlJob j = getJob();
-        if (j == null) return null;
-        CrawlController c = j.getCrawlController();
+        CrawlController c = getCrawlController();
         if (c == null) return null;
         return new FrontierReport(c.getFrontier());
     }
@@ -120,18 +127,14 @@ public class CrawlJobManager implements CrawlJobMXBean {
     
     @Override
     public CrawlStat getCrawlStat() throws IOException {
-        CrawlJob j = getJob();
-        if (j == null) return null;
-        CrawlController controller = j.getCrawlController();
+        CrawlController controller = getCrawlController();
         if (controller == null) return null;
         return new CrawlStat(controller);
     }
 
     @Override
     public int getMaxToeThreads() throws IOException {
-        CrawlJob j = getJob();
-        if (j == null) return 0;
-        CrawlController controller = j.getCrawlController();
+        CrawlController controller = getCrawlController();
         if (controller == null) {
             // XXX should throw more specific exception?
             throw new IOException("no controller");
