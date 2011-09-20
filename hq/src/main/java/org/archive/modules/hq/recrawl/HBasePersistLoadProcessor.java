@@ -31,7 +31,9 @@ import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.archive.modules.CrawlURI;
+import org.archive.modules.ProcessResult;
 import org.archive.modules.Processor;
+import org.archive.modules.fetcher.FetchStatusCodes;
 import org.archive.modules.recrawl.PersistLoadProcessor;
 import org.archive.modules.recrawl.RecrawlAttributeConstants;
 
@@ -69,7 +71,7 @@ public class HBasePersistLoadProcessor extends HBasePersistProcessor {
     }
     
     @Override
-    protected void innerProcess(CrawlURI uri) throws InterruptedException {
+    protected ProcessResult innerProcessResult(CrawlURI uri) throws InterruptedException {
         byte[] uriBytes = Bytes.toBytes(uri.toString());
         byte[] key = uriBytes;
         Get g = new Get(key);
@@ -79,7 +81,15 @@ public class HBasePersistLoadProcessor extends HBasePersistProcessor {
             if (r.isEmpty()) {
                 if (logger.isLoggable(Level.FINE))
                     logger.fine(uri + ": <no crawlinfo>");
-                return;
+                return ProcessResult.PROCEED;
+            }
+            // check for "do-not-crawl" flag - any non-empty data tells not to crawl
+            // this URL.
+            byte[] nocrawl = r.getValue(COLUMN_FAMILY, COLUMN_NOCRAWL);
+            if (nocrawl == null || nocrawl.length == 0) {
+                uri.setFetchStatus(FetchStatusCodes.S_OUT_OF_SCOPE);
+                uri.getAnnotations().add("nocrawl");
+                return ProcessResult.FINISH;
             }
             Map<String, Object>[] history = getFetchHistory(uri);
             Map<String, Object> h0 = history[0] = new HashMap<String, Object>();
@@ -108,8 +118,16 @@ public class HBasePersistLoadProcessor extends HBasePersistProcessor {
         } catch (IOException ex) {
             logger.warning("Get failed for " + uri);
         }
+        return ProcessResult.PROCEED;
     }
 
+    /**
+     * unused.
+     */
+    @Override
+    protected void innerProcess(CrawlURI uri) throws InterruptedException {
+    }
+    
     @Override
     protected boolean shouldProcess(CrawlURI uri) {
         // TODO: we want deduplicate robots.txt, too.

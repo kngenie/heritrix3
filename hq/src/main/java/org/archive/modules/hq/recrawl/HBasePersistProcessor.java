@@ -13,6 +13,7 @@ import org.archive.modules.recrawl.PersistProcessor;
  * <li>{@code d}: content digest (with {@code sha1:} prefix, Base32 text)</li>
  * <li>{@code e}: ETag (enclosing quotes stripped)</li>
  * <li>{@code m}: last-modified date-time (as integer timestamp, binary format)</li>
+ * <li>{@code z}: do-not-crawl flag - loader discards URL if this column has non-empty value.</li> 
  * </ul>
  * </p>
  * <p>TODO: I could make this class a sub-class of {@link PersistProcessor}, but
@@ -35,6 +36,7 @@ public abstract class HBasePersistProcessor extends Processor {
     public static final byte[] COLUMN_CONTENT_DIGEST = Bytes.toBytes("d");
     public static final byte[] COLUMN_ETAG = Bytes.toBytes("e");
     public static final byte[] COLUMN_LAST_MODIFIED = Bytes.toBytes("m");
+    public static final byte[] COLUMN_NOCRAWL = Bytes.toBytes("z");
 
     public HBasePersistProcessor() {
         super();
