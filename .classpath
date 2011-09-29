@@ -56,8 +56,8 @@
 	<classpathentry kind="var" path="M2_REPO/com/esotericsoftware/reflectasm/0.8/reflectasm-0.8.jar"/>
 	<classpathentry kind="var" path="M2_REPO/com/google/guava/guava/r08/guava-r08.jar" sourcepath="/M2_REPO/com/google/guava/guava/r08/guava-r08-sources.jar"/>
 	<classpathentry kind="var" path="M2_REPO/net/java/dev/jna/jna/3.2.3/jna-3.2.3.jar" sourcepath="/M2_REPO/net/java/dev/jna/jna/3.2.3/jna-3.2.3-sources.jar"/>
-	<classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpclient/4.0.3/httpclient-4.0.3.jar"/>
-	<classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpcore/4.0.1/httpcore-4.0.1.jar"/>
+	<classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpclient/4.0.3/httpclient-4.0.3.jar" sourcepath="/M2SRC/httpcomponents-client-4.1/httpclient/src/main/java"/>
+	<classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpcore/4.0.1/httpcore-4.0.1.jar" sourcepath="/M2SRC/httpcomponents-core-4.0.1/httpcore/src/main/java"/>
 	<classpathentry kind="var" path="M2_REPO/org/apache/hbase/hbase/0.90.3/hbase-0.90.3.jar" sourcepath="/M2SRC/hbase-0.90.3/src/main/java"/>
 	<classpathentry kind="var" path="M2_REPO/org/apache/hadoop/hadoop-core/0.20.2/hadoop-core-0.20.2.jar"/>
 	<classpathentry kind="output" path="bin"/>
