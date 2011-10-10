@@ -86,7 +86,7 @@ public class HBasePersistLoadProcessor extends HBasePersistProcessor {
             // check for "do-not-crawl" flag - any non-empty data tells not to crawl
             // this URL.
             byte[] nocrawl = r.getValue(COLUMN_FAMILY, COLUMN_NOCRAWL);
-            if (nocrawl == null || nocrawl.length == 0) {
+            if (nocrawl != null && nocrawl.length > 0) {
                 uri.setFetchStatus(FetchStatusCodes.S_OUT_OF_SCOPE);
                 uri.getAnnotations().add("nocrawl");
                 return ProcessResult.FINISH;
