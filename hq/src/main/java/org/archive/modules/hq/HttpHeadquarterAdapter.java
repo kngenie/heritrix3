@@ -19,8 +19,6 @@
 package org.archive.modules.hq;
 
 import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -32,9 +30,14 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.apache.commons.httpclient.URIException;
-import org.apache.commons.io.output.ByteArrayOutputStream;
+import org.apache.http.Header;
+import org.apache.http.HeaderElement;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpException;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpResponseInterceptor;
 import org.apache.http.NameValuePair;
 import org.apache.http.StatusLine;
 import org.apache.http.client.ClientProtocolException;
@@ -42,10 +45,10 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.params.CoreProtocolPNames;
+import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 import org.archive.modules.CrawlMetadata;
 import org.archive.modules.CrawlURI;
@@ -93,14 +96,51 @@ public class HttpHeadquarterAdapter {
     private String multiDiscoveredURL = null;
     
     protected boolean useUrlEncodedForDiscovered = false;
+    
+    protected int compressDiscovered = Integer.MAX_VALUE;
+    protected int compressFinished = Integer.MAX_VALUE;
 
     public HttpHeadquarterAdapter() {
-        this.httpClient1 = new DefaultHttpClient();
-        setupProtocolParams(this.httpClient1);
-        this.httpClient2 = new DefaultHttpClient();
-        setupProtocolParams(this.httpClient2);
+        this.httpClient1 = createHttpClient();
+        this.httpClient2 = createHttpClient();
     }
-    
+    private static boolean contains(HeaderElement[] elements, String value) {
+        for (int i = 0; i < elements.length; i++) {
+            if (elements[i].getName().equalsIgnoreCase(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    protected HttpClient createHttpClient() {
+        final DefaultHttpClient client = new DefaultHttpClient();
+        setupProtocolParams(client);
+        // setup Gzip inflating interceptors for transparent gzip-compressed response.
+        // taken from HttpComponents cookbook:
+        //   http://hc.apache.org/httpcomponents-client-ga/httpclient/examples/org/apache/http/examples/client/ClientGZipContentCompression.java
+        client.addRequestInterceptor(new HttpRequestInterceptor() {
+            @Override
+            public void process(final HttpRequest request, final HttpContext context)
+                    throws HttpException, IOException {
+                if (!request.containsHeader("Accept-Encoding")) {
+                    request.addHeader("Accept-Encoding", "gzip");
+                }
+            }
+        });
+        client.addResponseInterceptor(new HttpResponseInterceptor() { 
+            @Override
+            public void process(final HttpResponse response, final HttpContext context)
+                    throws HttpException, IOException {
+                HttpEntity entity = response.getEntity();
+                Header ceheader = entity.getContentEncoding();
+                if (ceheader != null && contains(ceheader.getElements(), "gzip")) {
+                    response.setEntity(
+                            new GzipInflatingHttpEntityWrapper(response.getEntity()));
+                }
+            }
+        });
+        return client;
+    }
     private void setupProtocolParams(HttpClient client) {
         client.getParams().setBooleanParameter(CoreProtocolPNames.USE_EXPECT_CONTINUE, false);
         client.getParams().setBooleanParameter(CoreProtocolPNames.WAIT_FOR_CONTINUE, false);
@@ -123,6 +163,40 @@ public class HttpHeadquarterAdapter {
         this.crawlInfo = crawlInfo;
     }
     
+    /**
+     * @return the compressDiscovered
+     */
+    public int getCompressDiscovered() {
+        return compressDiscovered;
+    }
+
+    /**
+     * maximum number of discovered URIs to <em>submit</em> without gzip compression.
+     * that is, setting this value to zero makes {@linkplain HttpHeadquarterAdapter}
+     * compress evey submission regardless of size.
+     * @param compressDiscovered the compressDiscovered to set
+     * @see #setCompressFinished(int)
+     */
+    public void setCompressDiscovered(int compressDiscovered) {
+        this.compressDiscovered = compressDiscovered;
+    }
+
+    /**
+     * @return the compressFinished
+     */
+    public int getCompressFinished() {
+        return compressFinished;
+    }
+
+    /**
+     * maximum number of finished URIs to submit <em>without</em> gzip compression.
+     * @param compressFinished the compressFinished to set
+     * @see #setCompressDiscovered(int)
+     */
+    public void setCompressFinished(int compressFinished) {
+        this.compressFinished = compressFinished;
+    }
+
     protected StringBuilder getURL(String action) {
         StringBuilder sb = new StringBuilder(baseURL);
         if (!baseURL.endsWith("/"))
@@ -199,12 +273,7 @@ public class HttpHeadquarterAdapter {
         try {
             // sending JSON text as entity for compactness
             // TODO: consider using BSON for even smaller payload
-            // TODO: reuse ByteArrayOutputStream instead of creating anew every time?
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            Writer w = new OutputStreamWriter(bytes, "UTF-8");
-            juris.write(w);
-            w.flush();
-            HttpEntity entity = new ByteArrayEntity(bytes.toByteArray());
+            HttpEntity entity = new JSONArrayHttpEntity(juris, juris.length() > compressFinished);
             post.setEntity(entity);
             post.addHeader("content-type", "text/json");
             if (logger.isLoggable(Level.FINE)) {
@@ -235,10 +304,7 @@ public class HttpHeadquarterAdapter {
                 }
             } catch (JSONException ex) {
                 logger.warning("failed to parse mfinished response as JSON:" + responseText);
-            } 
-        } catch (JSONException ex) {
-            logger.warning(juris.length() + " URIs not stored due to an error: " + ex);
-            logger.warning(juris.toString());
+            }
         } catch (ClientProtocolException ex) {
             logger.warning(juris.length() + " URIs not stored due to an error: " + ex);
             logger.warning(juris.toString());
@@ -417,14 +483,8 @@ public class HttpHeadquarterAdapter {
                 post.setEntity(new UrlEncodedFormEntity(params));
             } else {
                 // sending JSON text as entity - more compact.
-                // TODO: consider using BSON for even smaller payload
-                // TODO: reuse ByteArrayOutputStream instead of creating anew every time?
-                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-                Writer w = new OutputStreamWriter(bytes, "UTF-8");
-                juris.write(w);
-                w.flush();
-                //System.out.println("entity=" + bytes.toByteArray());
-                HttpEntity entity = new ByteArrayEntity(bytes.toByteArray());
+                // note: this sends JSONArray as entity, which is not technically a JSON.
+                HttpEntity entity = new JSONArrayHttpEntity(juris, juris.length() > compressDiscovered);
                 post.setEntity(entity);
                 post.addHeader("content-type", "text/json");
             }

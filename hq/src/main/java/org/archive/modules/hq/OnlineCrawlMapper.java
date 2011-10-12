@@ -76,7 +76,31 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
     
     protected final AtomicLong addedCount = new AtomicLong();
     
+    protected int discoveredQueueLimit = 2000;
+    /**
+     * maximum size of discovered URI queue.
+     * {@linkplain OnlineCrawlMapper} allows crawl workers to proceed until URI queue
+     * reaches this length. When queue fills up, workers will be blocked and thus crawl slows down.
+     * higher limit can avoid this situation, but comes with more risk of losing discovered URIs upon
+     * crawler crash.
+     * note that change after {@link #start()} has no effect.
+     * @param discoveredQueueLimit 
+     * @see #discoveredBatchSize
+     */
+    public void setDiscoveredQueueLimit(int discoveredQueueSize) {
+        this.discoveredQueueLimit = discoveredQueueSize;
+    }
+    public int getDiscoveredQueueLimit() {
+        return discoveredQueueLimit;
+    }
     protected final BlockingQueue<CrawlURI> discoveredQueue;
+    /**
+     * current size of discovered URI queue.
+     * @return int
+     */
+    public int getDiscoveredQueueSize() {
+        return discoveredQueue != null ? discoveredQueue.size() : 0;
+    }
 
     protected final AtomicBoolean discoveredSending = new AtomicBoolean(false);
     
@@ -107,8 +131,11 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
     public class Submitter implements Runnable {
         @Override
         public void run() {
-            CrawlURI[] bucket = new CrawlURI[discoveredBatchSize + discoveredBatchSizeMargin];
+            CrawlURI[] bucket = null;
             while (running || !discoveredQueue.isEmpty()) {
+                int bucketSize = discoveredBatchSize + discoveredBatchSizeMargin;
+                if (bucket == null || bucket.length != bucketSize)
+                    bucket = new CrawlURI[bucketSize];
                 Arrays.fill(bucket, null);
                 int count = 0;
                 for (int i = 0; i < bucket.length; i++) {
@@ -218,17 +245,35 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
     /**
      * total number of crawl job cluster nodes.
      * @param totalNodes positive integer.
+     * @deprecated this parameter is not used by recent HQ server.
      */
     public void setTotalNodes(int totalNodes) {
         this.totalNodes = totalNodes;
     }
-    
+    /**
+     * baseline batch size of discovered URI submission. {@linkplain OnlineCrawlMapper} waits for
+     * incoming discovered URI with timeout of 1 second (non-configurable at this moment) until submission
+     * batch reaches this size. after reaching this size, {@linkplain OnlineCrawlMapper} submits the
+     * batch as soon as incoming queue becomes empty. For best performance, discoveredQueueLimit should
+     * be larger than discoveredBatchSize.
+     * can be changed while job is running. it will be reflected to the next submission cycle.
+     * @param discoveredBatchSize
+     * @see #setDiscoveredQueueLimit(int)
+     * @see #setDiscoveredBatchSizeMargin(int)
+     */
     public void setDiscoveredBatchSize(int discoveredBatchSize) {
         this.discoveredBatchSize = discoveredBatchSize;
     }
     public int getDiscoveredBatchSize() {
         return discoveredBatchSize;
     }
+    /**
+     * maximum number of discovered URIs put into submission batch <i>beyond</i> discoveredBatchSize.
+     * when batch size reaches discoveredBatchSize + discoveredBatchSizeMargin, submission is forced
+     * even when more discovered URIs are waiting in the queue.
+     * @param discoveredBatchSizeMargin
+     * @see #setDiscoveredBatchSize(int)
+     */
     public void setDiscoveredBatchSizeMargin(int discoveredBatchSizeMargin) {
         this.discoveredBatchSizeMargin = discoveredBatchSizeMargin;
     }
@@ -436,8 +481,8 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
      * {@inheritDoc}
      * always returns 1.
      * as this method is used by {@link org.archive.crawler.frontier.WorkQueueFrontier} to
-     * decide if crawl job reached at its end, this methods always returning 1 means, crawl
-     * job never reaches its end.
+     * decide if crawl job reached its end, it means HQ-based crawl never ends.
+     * <p>In the future, HQ may send a message (in response to feed request) to signify job end.</p>
      */
     @Override
     public long pending() {
@@ -448,6 +493,18 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
     public void setProfileLog(File logfile) {
         // TODO Auto-generated method stub
         // currently unimplemented.
+    }
+    /**
+     * start discovered URI submission thread.
+     * this method is public for emergency use (currently submission thread exits upon
+     * serious error - maybe it shouldn't).
+     * request is ignored if submission threads is running.
+     */
+    public void startDiscoveredSubmitter() {
+        if (discoveredFlushThread != null && discoveredFlushThread.isAlive()) return;
+        discoveredFlushThread = new Thread(new Submitter());
+        discoveredFlushThread.setName("DiscoveredSubmitter");
+        discoveredFlushThread.start();        
     }
 
     // Lifecycle
@@ -464,9 +521,7 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
             ((Lifecycle)localUniqFilter).start();
         }
         running = true;
-        discoveredFlushThread = new Thread(new Submitter());
-        discoveredFlushThread.setName("DiscoveredSubmitter");
-        discoveredFlushThread.start();
+        startDiscoveredSubmitter();
     }
 
     @Override
