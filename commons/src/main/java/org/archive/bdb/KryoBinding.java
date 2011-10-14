@@ -1,4 +1,9 @@
 /*
+ *  This file is part of the Heritrix web crawler (crawler.archive.org).
+ *
+ *  Licensed to the Internet Archive (IA) by one or more individual 
+ *  contributors. 
+ *
  *  The IA licenses this file to You under the Apache License, Version 2.0
  *  (the "License"); you may not use this file except in compliance with
  *  the License.  You may obtain a copy of the License at
