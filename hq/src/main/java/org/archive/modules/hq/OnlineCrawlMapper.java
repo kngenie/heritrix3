@@ -76,6 +76,8 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
     
     protected final AtomicLong addedCount = new AtomicLong();
     
+    protected boolean inferredScheduledLocally = false;
+    
     protected int discoveredQueueLimit = 2000;
     /**
      * maximum size of discovered URI queue.
@@ -287,6 +289,18 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
         return feedBatchSize;
     }
     
+    public boolean isInferredScheduledLocally() {
+        return inferredScheduledLocally;
+    }
+    /**
+     * if set to false, <i>INFERRED</i> URIs (such as favicon.ico) are not routed
+     * through HQ.
+     * @param inferredScheduledLocally
+     */
+    public void setInferredScheduledLocally(boolean inferredScheduledLocally) {
+        this.inferredScheduledLocally = inferredScheduledLocally;
+    }
+    
     protected void schedule(CrawlURI curi) {
         // WorkQueueFrontier.processScheduleAlways() (called from receive())
         // assumes CrawlURI.classKey is non-null. schedule() calls prepare()
@@ -339,6 +353,14 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
             // FrontierPreparer. we don't need to do it again.
             receiver.receive(curi);
             return;
+        }
+        // schedule all 'I' (INFERRED) locally if so specified.
+        if (inferredScheduledLocally) {
+            String path = curi.getPathFromSeed();
+            if (path != null && path.endsWith("I")) {
+                receiver.receive(curi);
+                return;
+            }
         }
         // discard non-fetchable URIs
         String scheme = curi.getUURI().getScheme();
