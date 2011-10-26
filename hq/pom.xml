@@ -39,14 +39,14 @@
     <dependency>
     	<groupId>org.archive.heritrix</groupId>
     	<artifactId>heritrix-modules</artifactId>
-    	<version>3.1.0-SNAPSHOT</version>
+    	<version>3.1.1-SNAPSHOT</version>
     	<type>jar</type>
     	<scope>compile</scope>
     </dependency>
     <dependency>
     	<groupId>org.archive.heritrix</groupId>
     	<artifactId>heritrix-engine</artifactId>
-    	<version>3.1.0-SNAPSHOT</version>
+    	<version>3.1.1-SNAPSHOT</version>
     	<type>jar</type>
     	<scope>compile</scope>
     </dependency>
