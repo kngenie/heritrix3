@@ -201,6 +201,10 @@ public class CandidatesProcessor extends Processor {
                         && candidate.getHopCount() < SEEDS_REDIRECT_NEW_SEEDS_MAX_HOPS) {
                     candidate.setSeed(true); 
                 }
+                if (candidate.isLocation() && curi.forceFetch()) {
+                    // redirect destination should inherit forceFetch flag from curi
+                    candidate.setForceFetch(true);
+                }
                 getCandidateChain().process(candidate, null); 
                 if(candidate.getFetchStatus()>=0) {
                     if(checkForSeedPromotion(candidate)) {
