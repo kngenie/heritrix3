@@ -394,8 +394,8 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
      * Did the ApplicationContext self-validate? 
      * return true if validation passed without errors
      */
-    public synchronized boolean hasValidApplicationContext() {
-        if(ac==null) {
+    public boolean hasValidApplicationContext() {
+        if(ac==null || acState != AC_READY) {
             return false;
         }
         HashMap<String,Errors> allErrors = ac.getAllErrors();
