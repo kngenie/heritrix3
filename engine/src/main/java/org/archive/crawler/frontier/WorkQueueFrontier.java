@@ -1141,9 +1141,13 @@ implements Closeable,
                 wq.expend(holderCost); // all retries but DEFERRED cost
             }
             long delay_ms = retryDelayFor(curi) * 1000;
-            curi.processingCleanup(); // lose state that shouldn't burden retry
-            wq.unpeek(curi);
-            wq.update(this, curi); // rewrite any changes
+            try {
+                curi.processingCleanup(); // lose state that shouldn't burden retry
+                wq.unpeek(curi);
+                wq.update(this, curi); // rewrite any changes
+            } finally {
+                inProcessQueues.remove(wq);
+            }
             handleQueue(wq,curi.includesRetireDirective(),now,delay_ms);
             appCtx.publishEvent(new CrawlURIDispositionEvent(this,curi,DEFERRED_FOR_RETRY));
             doJournalReenqueued(curi);
@@ -1157,39 +1161,44 @@ implements Closeable,
         largestQueues.update(wq.getClassKey(), wq.getCount());
         log(curi);
 
-        
-        if (curi.isSuccess()) {
-            // codes deemed 'success' 
-            incrementSucceededFetchCount();
-            totalProcessedBytes.addAndGet(curi.getRecordedSize());
-            appCtx.publishEvent(new CrawlURIDispositionEvent(this,curi,SUCCEEDED));
-            doJournalFinishedSuccess(curi);
-           
-        } else if (isDisregarded(curi)) {
-            // codes meaning 'undo' (even though URI was enqueued, 
-            // we now want to disregard it from normal success/failure tallies)
-            // (eg robots-excluded, operator-changed-scope, etc)
-            incrementDisregardedUriCount();
-            appCtx.publishEvent(new CrawlURIDispositionEvent(this,curi,DISREGARDED));
-            holderCost = 0; // no charge for disregarded URIs
-            // TODO: consider reinstating forget-URI capability, so URI could be
-            // re-enqueued if discovered again
-            doJournalDisregarded(curi);
-            
-        } else {
-            // codes meaning 'failure'
-            incrementFailedFetchCount();
-            appCtx.publishEvent(new CrawlURIDispositionEvent(this,curi,FAILED));
-            // if exception, also send to crawlErrors
-            if (curi.getFetchStatus() == S_RUNTIME_EXCEPTION) {
-                Object[] array = { curi };
-                loggerModule.getRuntimeErrors().log(Level.WARNING, curi.getUURI()
-                        .toString(), array);
-            }        
-            // charge queue any extra error penalty
-            wq.noteError(getErrorPenaltyAmount());
-            doJournalFinishedFailure(curi);
-            
+        // these logging/stat code can trigger serious error like OOME. at least ensure
+        // wq will be removed from inProcessQueues.
+        try {
+            if (curi.isSuccess()) {
+                // codes deemed 'success' 
+                incrementSucceededFetchCount();
+                totalProcessedBytes.addAndGet(curi.getRecordedSize());
+                appCtx.publishEvent(new CrawlURIDispositionEvent(this,curi,SUCCEEDED));
+                doJournalFinishedSuccess(curi);
+
+            } else if (isDisregarded(curi)) {
+                // codes meaning 'undo' (even though URI was enqueued, 
+                // we now want to disregard it from normal success/failure tallies)
+                // (eg robots-excluded, operator-changed-scope, etc)
+                incrementDisregardedUriCount();
+                appCtx.publishEvent(new CrawlURIDispositionEvent(this,curi,DISREGARDED));
+                holderCost = 0; // no charge for disregarded URIs
+                // TODO: consider reinstating forget-URI capability, so URI could be
+                // re-enqueued if discovered again
+                doJournalDisregarded(curi);
+
+            } else {
+                // codes meaning 'failure'
+                incrementFailedFetchCount();
+                appCtx.publishEvent(new CrawlURIDispositionEvent(this,curi,FAILED));
+                // if exception, also send to crawlErrors
+                if (curi.getFetchStatus() == S_RUNTIME_EXCEPTION) {
+                    Object[] array = { curi };
+                    loggerModule.getRuntimeErrors().log(Level.WARNING, curi.getUURI()
+                            .toString(), array);
+                }        
+                // charge queue any extra error penalty
+                wq.noteError(getErrorPenaltyAmount());
+                doJournalFinishedFailure(curi);
+
+            }
+        } finally {
+            inProcessQueues.remove(wq);
         }
 
         wq.expend(holderCost); // successes & failures charge cost to queue
@@ -1220,7 +1229,8 @@ implements Closeable,
      * @param delay_ms
      */
     protected void handleQueue(WorkQueue wq, boolean forceRetire, long now, long delay_ms) {
-        inProcessQueues.remove(wq);
+        // moved to processFinish()
+        //inProcessQueues.remove(wq);
         if(forceRetire) {
             retireQueue(wq);
         } else if (delay_ms > 0) {
