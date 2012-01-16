@@ -355,7 +355,15 @@ public class JobResource extends BaseResource {
                     pw.print("</p>");
                 }
             } catch (IOException ioe) {
-                throw new RuntimeException(ioe); 
+                try {
+                    // if crawl.log cannot be opened due to errors like "too many open files",
+                    // try to continue rendering the page after noting the error.
+                    pw.print("<div>(Job Log cannot be displayed at this time: ");
+                    StringEscapeUtils.escapeHtml(pw, ioe.getMessage());
+                    pw.print(")</div>");
+                } catch (IOException ex) {
+                    throw new RuntimeException(ioe);
+                }
             }
         }
         pw.println("</div>");
