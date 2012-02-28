@@ -34,6 +34,17 @@ import org.archive.modules.CrawlURI;
 import org.archive.spring.KeyedProperties;
 
 /**
+ * Frontier with following modifications packaged as sub class of BdbFrontier:
+ * <ol>
+ * <li>'Pulls' more URIs when readyQueue becomes low by calling
+ * {@link UriUniqFilter#requestFlush()}.</li>
+ * <li>Uses simpler mechanism for RUN/PAUSE control.</li>
+ * <li>wakes up snoozed queue in managementTasks() instead of findEligibleURI.</li>
+ * </ol>
+ * Pulling is for implementing crawler cluster receiving
+ * CrawlURIs from a remote queue management server.
+ * Other modifications are for better performance and robustness.
+ * This class is still experimental. 
  * @contributor kenji
  */
 public class PullingBdbFrontier extends BdbFrontier {
@@ -134,7 +145,10 @@ public class PullingBdbFrontier extends BdbFrontier {
                 case RUN:
                     // move queues who finished snoozing to ready queue then sleep until
                     // the time for the next wake up call.
-                    long nextWake = wakeQueues2();
+                    wakeQueues();
+                    // TODO: we need to take queues in snoozedOverflow into account for completeness
+                    DelayedWorkQueue head = snoozedClassQueues.peek();
+                    long nextWake = head != null ? head.getWakeTime() : Long.MAX_VALUE;
                     long delay = nextWake - System.currentTimeMillis();
                     if (delay > 0) {
                         // currently snoozeUpdate is not triggered when crawler becomes
@@ -162,7 +176,11 @@ public class PullingBdbFrontier extends BdbFrontier {
                     snoozeLock.lock();
                     try {
                         // suspend indefinitely until resumed by requestState()
-                        snoozeUpdated.await();
+                        //snoozeUpdated.await();
+                        // currently snoozeUpdated is not triggered when inProcessCount
+                        // changes. wait() needs timeout so that reachedState(PAUSE) above
+                        // gets called.
+                        snoozeUpdated.await(1000L, TimeUnit.MILLISECONDS);
                     } catch (InterruptedException ex) {
                         // another way to resume.
                     } finally {
@@ -189,9 +207,8 @@ public class PullingBdbFrontier extends BdbFrontier {
     public CrawlURI next() throws InterruptedException {
         long t0 = System.currentTimeMillis();
         
-        CrawlURI crawlable = null; //outbound.poll();
+        CrawlURI crawlable = null;
         do {
-            // try filling outbound until we get something to work on
             long t1 = System.currentTimeMillis();
             if (logger.isLoggable(Level.FINE))
                 logger.fine("calling findEligibleURI()");
@@ -210,27 +227,6 @@ public class PullingBdbFrontier extends BdbFrontier {
     }
     
     /**
-     * Wake any queues sitting in the snoozed queue whose time has come.
-     * <p>
-     * FIXME: bad name. {@link AbstractFrontier} should not be aware of "WorkQueue".
-     * this method has been promoted from {@link WorkQueueFrontier} - think of more
-     * abstract name suitable for {@link AbstractFrontier}.
-     * </p>
-     * @return return time (in ms) this method should be run. 
-     * or Long.MAX_VALUE if there's nothing to wake in the horizon.
-     */
-    protected long wakeQueues2() {
-        wakeQueues();
-        // XXX we need to take queues in snoozedOverflow into account
-        DelayedWorkQueue head = snoozedClassQueues.peek();
-        if (head != null) {
-            return head.getWakeTime();
-        } else {
-            return Long.MAX_VALUE;
-        }
-    }
-    
-    /**
      * Put the given queue on the readyClassQueues queue.
      * <p>it will release {@link ToeThread}s waiting on readyClassQueues.
      * see {@link #findEligibleURI()}. It is no longer necessary to
@@ -241,12 +237,6 @@ public class PullingBdbFrontier extends BdbFrontier {
     @Override
     protected void readyQueue(WorkQueue wq) {
         try {
-            //wq.setActive(this, true);
-            // this will release ToeThreads waiting on readyClassQueues.
-            // put operation would never block as readyClassQueues is unbounded.
-            // currently readyClassQueues.put() need owning readyLock,
-            // but I plan to make readyClassQueues a non-concurrent version of
-            // Queue.
             readyClassQueues.put(wq.getClassKey());
             if (logger.isLoggable(Level.FINE)) {
                 logger.log(Level.FINE, "queue readied: " + wq.getClassKey());
