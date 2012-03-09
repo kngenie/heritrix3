@@ -46,8 +46,11 @@ import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
 import org.apache.http.message.BasicNameValuePair;
+import org.apache.http.params.CoreConnectionPNames;
 import org.apache.http.params.CoreProtocolPNames;
+import org.apache.http.params.HttpParams;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 import org.archive.modules.CrawlMetadata;
@@ -81,10 +84,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 public class HttpHeadquarterAdapter {
     private static final Logger logger = Logger.getLogger(HttpHeadquarterAdapter.class.getName());
 
-    // for feed and finished
-    private HttpClient httpClient1;
-    // for discovered
-    private HttpClient httpClient2;
+    // single thread-safe HttpClient
+    private HttpClient httpClient;
+    protected int socketTimeout = 30000;
+    protected int connectionTimeout = 5000;
     
     // for getting job name
     protected CrawlMetadata crawlInfo;
@@ -101,8 +104,7 @@ public class HttpHeadquarterAdapter {
     protected int compressFinished = Integer.MAX_VALUE;
 
     public HttpHeadquarterAdapter() {
-        this.httpClient1 = createHttpClient();
-        this.httpClient2 = createHttpClient();
+        this.httpClient = createHttpClient();
     }
     private static boolean contains(HeaderElement[] elements, String value) {
         for (int i = 0; i < elements.length; i++) {
@@ -113,7 +115,9 @@ public class HttpHeadquarterAdapter {
         return false;
     }
     protected HttpClient createHttpClient() {
-        final DefaultHttpClient client = new DefaultHttpClient();
+        final ThreadSafeClientConnManager conman = new ThreadSafeClientConnManager();
+        conman.setDefaultMaxPerRoute(3);
+        final DefaultHttpClient client = new DefaultHttpClient(conman);
         setupProtocolParams(client);
         // setup Gzip inflating interceptors for transparent gzip-compressed response.
         // taken from HttpComponents cookbook:
@@ -142,8 +146,34 @@ public class HttpHeadquarterAdapter {
         return client;
     }
     private void setupProtocolParams(HttpClient client) {
-        client.getParams().setBooleanParameter(CoreProtocolPNames.USE_EXPECT_CONTINUE, false);
-        client.getParams().setBooleanParameter(CoreProtocolPNames.WAIT_FOR_CONTINUE, false);
+        HttpParams params = client.getParams();
+        params.setBooleanParameter(CoreProtocolPNames.USE_EXPECT_CONTINUE, false);
+        params.setBooleanParameter(CoreProtocolPNames.WAIT_FOR_CONTINUE, false);
+        params.setIntParameter(CoreConnectionPNames.SO_TIMEOUT, socketTimeout);
+        params.setIntParameter(CoreConnectionPNames.CONNECTION_TIMEOUT, connectionTimeout);
+    }
+
+    public int getSocketTimeout() {
+        return socketTimeout;
+    }
+    /**
+     * socket timeout for HTTP connection.
+     * currently change has no effect.
+     * @param socketTimeout
+     */
+    public void setSocketTimeout(int socketTimeout) {
+        this.socketTimeout = socketTimeout;
+    }
+    public int getConnectionTimeout() {
+        return connectionTimeout;
+    }
+    /**
+     * connection timeout for HTTP connection.
+     * currently change has no effect.
+     * @param connectionTimeout
+     */
+    public void setConnectionTimeout(int connectionTimeout) {
+        this.connectionTimeout = connectionTimeout;
     }
 
     private String baseURL = "http://localhost/hq";
@@ -282,14 +312,13 @@ public class HttpHeadquarterAdapter {
             int statusCode = -1;
             String reason = null;
             String responseText = null;
-            synchronized (httpClient1) {
-                HttpResponse response = httpClient1.execute(post);
-                StatusLine sl = response.getStatusLine();
-                statusCode = sl.getStatusCode();
-                reason = sl.getReasonPhrase();
-                HttpEntity re = response.getEntity();
-                responseText = EntityUtils.toString(re);
-            }
+            HttpResponse response = httpClient.execute(post);
+            StatusLine sl = response.getStatusLine();
+            statusCode = sl.getStatusCode();
+            reason = sl.getReasonPhrase();
+            HttpEntity re = response.getEntity();
+            // EntityUtils.toString(HttpEntity) releases connection.
+            responseText = re != null ? EntityUtils.toString(re) : "";
             if (logger.isLoggable(Level.FINE))
                 logger.fine("mfinished([...])->" + statusCode + " " + responseText);
             if (statusCode != 200) {
@@ -428,13 +457,11 @@ public class HttpHeadquarterAdapter {
             UrlEncodedFormEntity entity = new UrlEncodedFormEntity(params);
             post.setEntity(entity);
             String responseText = null;
-            synchronized (httpClient1) {
-                if (logger.isLoggable(Level.FINE))
-                    logger.fine("invoking PUT " + post.getURI());
-                HttpResponse response = httpClient1.execute(post);
-                HttpEntity re = response.getEntity();
-                responseText = EntityUtils.toString(re);
-            }
+            if (logger.isLoggable(Level.FINE))
+                logger.fine("invoking PUT " + post.getURI());
+            HttpResponse response = httpClient.execute(post);
+            HttpEntity re = response.getEntity();
+            responseText = re != null ? EntityUtils.toString(re) : "";
             if (logger.isLoggable(Level.FINE))
                 logger.fine("finished(" + uri + ")->" + responseText);
         } catch (JSONException ex) {
@@ -494,14 +521,12 @@ public class HttpHeadquarterAdapter {
             int statusCode = -1;
             String reason = null;
             String responseText = null;
-            synchronized (httpClient2) {
-                HttpResponse response = httpClient2.execute(post);
-                StatusLine sl = response.getStatusLine();
-                statusCode = sl.getStatusCode();
-                reason = sl.getReasonPhrase();
-                HttpEntity re = response.getEntity();
-                responseText = EntityUtils.toString(re);
-            }
+            HttpResponse response = httpClient.execute(post);
+            StatusLine sl = response.getStatusLine();
+            statusCode = sl.getStatusCode();
+            reason = sl.getReasonPhrase();
+            HttpEntity re = response.getEntity();
+            responseText = re != null ? EntityUtils.toString(re) : "";
             if (logger.isLoggable(Level.FINE)) {
                 logger.fine("discovered([...])->" + statusCode + ": " + responseText);
             }
@@ -571,11 +596,11 @@ public class HttpHeadquarterAdapter {
                 logger.fine("params={" + sb.toString() + "}");
             }
             String responseText = null;
-            synchronized (httpClient2) {
-                HttpResponse response = httpClient2.execute(post);
+            //synchronized (httpClient2) {
+                HttpResponse response = httpClient.execute(post);
                 HttpEntity re = response.getEntity();
                 responseText = EntityUtils.toString(re);
-            }
+            //}
             if (logger.isLoggable(Level.FINE))
                 logger.fine("discovered(" + uri + ")->" + responseText);
         } catch (ClientProtocolException ex) {
@@ -601,21 +626,19 @@ public class HttpHeadquarterAdapter {
         HttpGet get = new HttpGet(url);
         try {
             String responseText = null;
-            synchronized (httpClient1) {
-                HttpResponse response = httpClient1.execute(get);
-                StatusLine sl = response.getStatusLine();
-                if (sl.getStatusCode() == 200) {
-                    HttpEntity re = response.getEntity();
-                    responseText = EntityUtils.toString(re);
-                    if (logger.isLoggable(Level.FINE))
-                        logger.fine("reset(" + nodeNo + "," + totalNodes
-                                + ")->" + responseText);
-                } else {
-                    HttpEntity re = response.getEntity();
-                    if (re != null)
-                        re.consumeContent();
-                    logger.warning("Get " + url + " returned " + sl);
-                }
+            HttpResponse response = httpClient.execute(get);
+            StatusLine sl = response.getStatusLine();
+            if (sl.getStatusCode() == 200) {
+                HttpEntity re = response.getEntity();
+                responseText = EntityUtils.toString(re);
+                if (logger.isLoggable(Level.FINE))
+                    logger.fine("reset(" + nodeNo + "," + totalNodes
+                            + ")->" + responseText);
+            } else {
+                HttpEntity re = response.getEntity();
+                if (re != null)
+                    EntityUtils.consume(re);
+                logger.warning("Get " + url + " returned " + sl);
             }
         } catch (Exception ex) {
             logger.warning("error getting CrawlURIs: " + ex);
@@ -628,8 +651,8 @@ public class HttpHeadquarterAdapter {
         HttpGet get = new HttpGet(url);
         try {
             String responseText = null;
-            synchronized (httpClient1) {
-                HttpResponse response = httpClient1.execute(get);
+            //synchronized (httpClient1) {
+                HttpResponse response = httpClient.execute(get);
                 StatusLine sl = response.getStatusLine();
                 if (sl.getStatusCode() == 200) {
                     HttpEntity re = response.getEntity();
@@ -637,10 +660,10 @@ public class HttpHeadquarterAdapter {
                 } else {
                     HttpEntity re = response.getEntity();
                     if (re != null)
-                        re.consumeContent();
+                        EntityUtils.consume(re);
                     logger.warning("GET " + url + " returned " + sl);
                 }
-            }
+            //}
             if (responseText == null) {
                 return new CrawlURI[0];
             }
