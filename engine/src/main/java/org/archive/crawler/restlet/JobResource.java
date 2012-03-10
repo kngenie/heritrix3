@@ -365,15 +365,7 @@ public class JobResource extends BaseResource {
                     pw.println("</div>");
                 }
             } catch (IOException ioe) {
-                try {
-                    // if crawl.log cannot be opened due to errors like "too many open files",
-                    // try to continue rendering the page after noting the error.
-                    pw.print("<div>(Job Log cannot be displayed at this time: ");
-                    StringEscapeUtils.escapeHtml(pw, ioe.getMessage());
-                    pw.print(")</div>");
-                } catch (IOException ex) {
-                    throw new RuntimeException(ioe);
-                }
+                pw.println("<div class=\"error\">error reading job log</div>");
             }
         }
         pw.println("</div>");
@@ -422,7 +414,7 @@ public class JobResource extends BaseResource {
             if ((cj.isRunning() || (cj.hasApplicationContext() && !cj.isLaunchable()))
                     && cj.getCrawlController().getLoggerModule().getCrawlLogPath().getFile().exists()) {
                 // show crawl log for running or finished crawls
-                pw.print("<h3>Crawl Log");
+                pw.print("<h3>Crawl Log ");
                 printLinkedFile(
                         pw,
                         cj.getCrawlController().getLoggerModule().getCrawlLogPath().getFile(),
@@ -443,7 +435,7 @@ public class JobResource extends BaseResource {
                         pw.println();
                     }
                 } catch (IOException ioe) {
-                    throw new RuntimeException(ioe); 
+                    pw.println("--error reading crawl log--");
                 }
                 pw.println("</pre>");
             }
