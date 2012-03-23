@@ -40,6 +40,10 @@ public interface UriUniqFilter {
      * @return Count of already seen URIs.
      */
     public long count();
+    /**
+     * @return Count of URIs added.
+     */
+    public long addedCount();
     
     /**
      * Count of items added, but not yet filtered in or out. 

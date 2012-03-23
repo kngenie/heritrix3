@@ -1,0 +1,600 @@
+/*
+ *  This file is part of the Heritrix web crawler (crawler.archive.org).
+ *
+ *  Licensed to the Internet Archive (IA) by one or more individual 
+ *  contributors. 
+ *
+ *  The IA licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
+package org.archive.crawler.frontier;
+
+import java.util.Queue;
+import java.util.Map.Entry;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import org.archive.crawler.datamodel.UriUniqFilter;
+import org.archive.crawler.framework.ToeThread;
+import org.archive.modules.CrawlURI;
+import org.archive.spring.KeyedProperties;
+
+/**
+ * @contributor kenji
+ */
+public class PullingBdbFrontier extends BdbFrontier {
+    private static Logger logger = Logger.getLogger(PullingBdbFrontier.class.getName());
+    
+    protected Lock readyLock;
+    protected Condition queueReady;
+    
+    protected Lock snoozeLock;
+    protected Condition snoozeUpdated;
+    private long nextWakeTime = Long.MAX_VALUE;
+    
+    public PullingBdbFrontier() {
+        this.readyLock = new ReentrantLock();
+        this.queueReady = this.readyLock.newCondition();
+        this.snoozeLock = new ReentrantLock();
+        this.snoozeUpdated = this.snoozeLock.newCondition();
+    }
+    
+    /**
+     * exposes {@link UriUniqFilter#addedCount()} for monitoring framework.
+     * @return
+     */
+    public long candidateUriCount() {
+        return (this.uriUniqFilter != null) ? this.uriUniqFilter.addedCount() : 0;
+    }
+    
+    /**
+     * call this method to notify management thread of a queue being
+     * snoozed. management thread will wake up and recalculate next wake up
+     * time if necessary.
+     * @param wakeTime
+     */
+    protected void updateSnoozeTime(long wakeTime) {
+        if (wakeTime < nextWakeTime) {
+            snoozeLock.lock();
+            try {
+                snoozeUpdated.signal();
+            } finally {
+                snoozeLock.unlock();
+            }
+        }
+    }
+    @Override
+    public void requestState(State target) {
+        super.requestState(target);
+        // notify state change
+        snoozeLock.lock();
+        snoozeUpdated.signal();
+        snoozeLock.unlock();
+    }
+    
+    @Override
+    protected void managementTasks() {
+        try {
+            loop: while (true) {
+                try {
+                    State reachedState = null; 
+                    switch (targetState) {
+                    case EMPTY:
+                        reachedState = State.EMPTY; 
+                    case RUN:
+                        readyLock.lock();
+                        //queueReady.signalAll();
+                        // resume just one thread and it will resume other threads
+                        // as CrawlURI become available.
+                        queueReady.signal();
+                        readyLock.unlock();
+                        if(reachedState==null) {
+                            reachedState= State.RUN;
+                        }
+                        reachedState(reachedState);
+                        do {
+                            long nextWake = wakeQueues2();
+                            long delay = nextWake - System.currentTimeMillis();
+                            if (delay > 0) {
+                                // currently snoozeUpdate is not triggered when crawler becomes
+                                // empty. until we implement it, limit sleep to max 1 seconds.
+                                if (delay > 1000) delay = 1000;
+                                if (logger.isLoggable(Level.FINE))
+                                    logger.fine("suspending for " + delay + "ms");
+                                snoozeLock.lock();
+                                try {
+                                    nextWakeTime = nextWake;
+                                    snoozeUpdated.await(delay, TimeUnit.MILLISECONDS);
+                                } finally {
+                                    snoozeLock.unlock();
+                                }
+                                if (logger.isLoggable(Level.FINE))
+                                    logger.fine("resumed");
+                            }
+                            if(isEmpty()&&targetState==State.RUN) {
+                                targetState = State.EMPTY;
+                            } else if (!isEmpty()&&targetState==State.EMPTY) {
+                                targetState = State.RUN;
+                            }
+                        } while (targetState == reachedState);
+                        break;
+                    case HOLD:
+                        // TODO; for now treat same as PAUSE
+                    case PAUSE:
+                        // pausing
+                        // prevent all outbound takes
+//                        outboundLock.writeLock().lock();
+                        while (targetState == State.PAUSE && getInProcessCount() > 0) {
+                            // use of Thread.sleep() prevents operator from unpausing the
+                            // crawler until all threads finish current processing.
+                            //Thread.sleep(1000);
+                            snoozeLock.lock();
+                            try {
+                                snoozeUpdated.await(1, TimeUnit.SECONDS);
+                            } finally {
+                                snoozeLock.unlock();
+                            }
+                        }
+                        reachedState(State.PAUSE);
+                        // call to reachedState() can change targetState to other than
+                        // State.PAUSE. see CrawlController.noteFrontierState().
+                        while (targetState == State.PAUSE) {
+                            snoozeLock.lock();
+                            try {
+                                // suspend indefinitely until resumed by requestState()
+                                snoozeUpdated.await();
+                            } finally {
+                                snoozeLock.unlock();
+                            }
+                        }
+                        break;
+                    case FINISH:
+                        // execution of finalTasks() must wait until all ToeThreads
+                        // finish current processing. TODO: use of sleep() is ugly.
+                        while (getInProcessCount()>0) {
+                            Thread.sleep(1000);
+                        }
+
+                        finalTasks(); 
+                        // TODO: more cleanup?
+                        reachedState(State.FINISH);
+                        break loop;
+                    }
+                } catch (RuntimeException e) {
+                    // log, try to pause, continue
+                    logger.log(Level.SEVERE,"",e);
+                    if(targetState!=State.PAUSE && targetState!=State.FINISH) {
+                        // do not use requestState(), which signals management thread
+                        // through snoozeUpdated Condition of state change - waste of
+                        // CPU cycles.
+                        //requestState(State.PAUSE);
+                        targetState = State.PAUSE;
+                    }
+                }
+            }
+        } catch (InterruptedException e) {
+            // XXX should never reach here - all exception shall be
+            // handled by inner try-catch.
+            throw new RuntimeException(e);
+        } 
+        
+        // try to leave in safely restartable state:
+        // XXX: if management thread no longer exists, who can handle
+        // targetState change?
+        targetState = State.PAUSE;
+        // TODO: following code allows ToeThread to continue running
+        // despite targetState == State.PAUSE. such state is not supported
+        // in current code.
+//        while(outboundLock.isWriteLockedByCurrentThread()) {
+//            outboundLock.writeLock().unlock();
+//        }
+        //TODO: ensure all other structures are cleanly reset on restart
+        
+        logger.log(Level.FINE,"ending frontier mgr thread");
+    }
+   
+    /* (non-Javadoc)
+     * @see org.archive.crawler.framework.Frontier#next()
+     */
+    public CrawlURI next() throws InterruptedException {
+        long t0 = System.currentTimeMillis();
+        
+        CrawlURI crawlable = null; //outbound.poll();
+        do {
+            // try filling outbound until we get something to work on
+            long t1 = System.currentTimeMillis();
+            if (logger.isLoggable(Level.FINE))
+                logger.fine("calling findEligibleURI()");
+            // now findEligibleURI() will block until at least one queue becomes
+            // ready. this is the new parking point for ToeThreads.
+            crawlable = findEligibleURI();
+            if (logger.isLoggable(Level.FINE))
+                logger.fine(String.format("findEligibleURI() done in %dms",
+                    System.currentTimeMillis() - t1));
+        } while (crawlable == null);
+        
+        if (logger.isLoggable(Level.FINE))
+            logger.fine(String.format("got URI in %dms",
+                    System.currentTimeMillis() - t0));
+        return crawlable;
+    }
+    
+    /**
+     * Wake any queues sitting in the snoozed queue whose time has come.
+     * <p>
+     * FIXME: bad name. {@link AbstractFrontier} should not be aware of "WorkQueue".
+     * this method has been promoted from {@link WorkQueueFrontier} - think of more
+     * abstract name suitable for {@link AbstractFrontier}.
+     * </p>
+     * @return return time (in ms) this method should be run. 
+     * or Long.MAX_VALUE if there's nothing to wake in the horizon.
+     */
+    protected long wakeQueues2() {
+        wakeQueues();
+        // XXX we need to take queues in snoozedOverflow into account
+        DelayedWorkQueue head = snoozedClassQueues.peek();
+        if (head != null) {
+            return head.getWakeTime();
+        } else {
+            return Long.MAX_VALUE;
+        }
+    }
+    
+    /**
+     * Put the given queue on the readyClassQueues queue.
+     * <p>it will release {@link ToeThread}s waiting on readyClassQueues.
+     * see {@link #findEligibleURI()}. It is no longer necessary to
+     * call {@link #findEligibleURI()} to fill outbound queue. Waking up
+     * {@link ToeThread} handles it.</p>
+     * @param wq {@link WorkQueue} to become ready.
+     */
+    @Override
+    protected void readyQueue(WorkQueue wq) {
+        try {
+            //wq.setActive(this, true);
+            // this will release ToeThreads waiting on readyClassQueues.
+            // put operation would never block as readyClassQueues is unbounded.
+            // currently readyClassQueues.put() need owning readyLock,
+            // but I plan to make readyClassQueues a non-concurrent version of
+            // Queue.
+            readyClassQueues.put(wq.getClassKey());
+            if(logger.isLoggable(Level.FINE)) {
+                logger.log(Level.FINE,
+                        "queue readied: " + wq.getClassKey());
+            }
+            queueReadiedCount.incrementAndGet();
+            readyLock.lock();
+            try {
+                queueReady.signal();
+            } finally {
+                readyLock.unlock();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            System.err.println("unable to ready queue "+wq);
+            // propagate interrupt up 
+            throw new RuntimeException(e);
+        }
+    }
+
+   private int pullTriggerLevel = 100;
+   public void setPullTriggerLevel(int pullTriggerLevel) {
+       this.pullTriggerLevel = pullTriggerLevel;
+   }
+   public int getPullTriggerLevel() {
+       return pullTriggerLevel;
+   }
+   private final AtomicBoolean pulling = new AtomicBoolean();
+   
+   /**
+    * called when readyClassQueue becomes low, pulls more URIs into crawler.
+    * @return true if this thread should check the level again.
+    */
+   protected boolean pullURIs() {
+       // we want only one thread work on this task. other thread should go ahead and
+       // wait on readyClassQueue.
+       if (!pulling.compareAndSet(false, true)) return false;
+       
+       try {
+           // first try pulling from local InactiveQueue
+           if (!getInactiveQueuesByPrecedence().isEmpty() && highestPrecedenceWaiting < getPrecedenceFloor()) {
+               if (activateInactiveQueue()) {
+                   return true;
+               }
+           }
+           // then trigger pull from external source.
+           long t2 = System.currentTimeMillis();
+           long nflushed = uriUniqFilter.requestFlush();
+           if (logger.isLoggable(Level.FINE))
+               logger.fine("UriUniqFilter flushed: "
+                       + nflushed + " in "
+                       + (System.currentTimeMillis() - t2)
+                       + "ms");
+           if (nflushed == 0) return false;
+//           if (nflushed > 0) {
+//               // if URLs got flushed, check readyClassQueue again.
+//               // if no queues are ready, probably all URLs have gone
+//               // into existing snoozed queues. retry flushing again,
+//               // but allow operator to pause the job by continuing outer
+//               // loop rather than looping here.
+//               readyLock.lock();
+//               try { queueReady.signalAll(); }
+//               finally { readyLock.unlock(); }
+//           }
+       } finally {
+           pulling.set(false);
+       }
+       return true;
+   }
+
+   /**
+    * Return the next CrawlURI eligible to be processed (and presumably
+    * visited/fetched) by a a worker thread.
+    *
+    * Relies on the readyClassQueues having been loaded with
+    * any work queues that are eligible to provide a URI. 
+    *
+    * @return next CrawlURI eligible to be processed, or null if none available
+    *
+    * @see org.archive.crawler.framework.Frontier#next()
+    */
+   protected CrawlURI findEligibleURI() throws InterruptedException {
+       // wake any snoozed queues - this is now done by managementTasks()
+       //wakeQueues();
+       // consider rescheduled URIS
+       checkFutures();
+
+       CrawlURI curi = null;
+       // TODO: refactor to untangle these loops, early-exits, etc!
+       findauri: while (true) {
+           // find a non-empty ready queue, if any
+           WorkQueue readyQ = null;
+           findaqueue: do {
+               String key = null;
+               do {
+                   // XXX WorkQueueFrontier should not make direct reference
+                   // to targetState
+                   if (targetState == State.RUN) {
+                       // if size of readyClassQueue dropped below configured
+                       // level,
+                       // trigger "pulling" so that more queues will become
+                       // ready before
+                       // readyClassQueue gets exhausted.
+                       int readyLevel = readyClassQueues.size();
+                       if (readyLevel < pullTriggerLevel) {
+                           if (pullURIs())
+                               continue;
+                       }
+                       key = readyClassQueues.poll();
+                       if (key == null) {
+                           if (pullURIs())
+                               continue;
+                           if (key == null) {
+                               readyLock.lock();
+                               try {
+                                   if (logger.isLoggable(Level.FINE))
+                                       logger
+                                       .fine("readyClassQueue empty, suspending");
+                                   queueReady.await();
+                                   if (logger.isLoggable(Level.FINE))
+                                       logger.fine("resumed");
+                               } finally {
+                                   readyLock.unlock();
+                               }
+                           }
+                       }
+                   } else {
+                       readyLock.lock();
+                       try {
+                           if (logger.isLoggable(Level.FINE))
+                               logger.fine("state " + targetState
+                                       + ", suspending");
+                           queueReady.await();
+                           if (logger.isLoggable(Level.FINE))
+                               logger.fine("resumed");
+                       } finally {
+                           readyLock.unlock();
+                       }
+                   }
+               } while (key == null);
+               if (logger.isLoggable(Level.FINE))
+                   logger.fine("found ready queue: " + key);
+               // } finally {
+               // readyLock.unlock();
+               // }
+               readyQ = getQueueFor(key);
+               if (readyQ == null) {
+                   // readyQ key wasn't in all queues: unexpected
+                   logger.severe("Key " + key
+                           + " in readyClassQueues but not allQueues");
+                   break findaqueue;
+               }
+               if (readyQ.getCount() == 0) {
+                   // readyQ is empty and ready: it's exhausted
+                   if (logger.isLoggable(Level.FINE))
+                       logger.fine(readyQ.getClassKey()
+                               + " is exhausted, trying another");
+                   readyQ.noteExhausted();
+                   readyQ.makeDirty();
+                   readyQ = null;
+                   continue;
+               }
+               if (!inProcessQueues.add(readyQ)) {
+                   // double activation; discard this and move on
+                   // (this guard allows other enqueuings to ready or
+                   // the various inactive-by-precedence queues to
+                   // sometimes redundantly enqueue a queue key)
+                   if (logger.isLoggable(Level.FINE))
+                       logger.fine(readyQ.getClassKey() + " is in-process");
+                   readyQ = null;
+                   continue;
+               }
+               // queue has gone 'in process'
+               readyQ.considerActive();
+               readyQ.setWakeTime(0); // clear obsolete wake time, if any
+
+               readyQ.setSessionBudget(getBalanceReplenishAmount());
+               readyQ.setTotalBudget(getQueueTotalBudget());
+               if (readyQ.isOverSessionBudget()) {
+                   deactivateQueue(readyQ);
+                   readyQ.makeDirty();
+                   readyQ = null;
+                   continue;
+               }
+               if (readyQ.isOverTotalBudget()) {
+                   retireQueue(readyQ);
+                   readyQ.makeDirty();
+                   readyQ = null;
+                   continue;
+               }
+           } while (readyQ == null);
+
+           if (readyQ == null) {
+               // no queues left in ready or readiable
+               break findauri;
+           }
+
+           returnauri: while (true) { // loop left by explicit return or break
+               // on empty
+               curi = readyQ.peek(this);
+               if (curi == null) {
+                   // should not reach
+                   logger.severe("No CrawlURI from ready non-empty queue "
+                           + readyQ.getClassKey() + "\n"
+                           + readyQ.shortReportLegend() + "\n"
+                           + readyQ.shortReportLine() + "\n");
+                   break returnauri;
+               }
+
+               // from queues, override names persist but not map source
+               curi.setOverlayMapsSource(sheetOverlaysManager);
+               // TODO: consider optimizations avoiding this recalc of
+               // overrides when not necessary
+               sheetOverlaysManager.applyOverlaysTo(curi);
+               // check if curi belongs in different queue
+               String currentQueueKey;
+               try {
+                   KeyedProperties.loadOverridesFrom(curi);
+                   currentQueueKey = getClassKey(curi);
+               } finally {
+                   KeyedProperties.clearOverridesFrom(curi);
+               }
+               if (currentQueueKey.equals(curi.getClassKey())) {
+                   // curi was in right queue, emit
+                   noteAboutToEmit(curi, readyQ);
+                   // really unnecessary?
+                   // inProcessQueues.add(readyQ);
+                   // return curi;
+                   break findauri;
+               }
+               if (logger.isLoggable(Level.FINE))
+                   logger.fine(readyQ.getClassKey() + " classKey changed "
+                           + curi.getClassKey() + "->" + currentQueueKey);
+
+               // URI's assigned queue has changed since it
+               // was queued (eg because its IP has become
+               // known). Requeue to new queue.
+               // TODO: consider synchronization on readyQ
+               readyQ.dequeue(this, curi);
+               doJournalRelocated(curi);
+               curi.setClassKey(currentQueueKey);
+               decrementQueuedCount(1);
+               curi.setHolderKey(null);
+               sendToQueue(curi);
+               if (readyQ.getCount() == 0) {
+                   // readyQ is empty and ready: it's exhausted
+                   // release held status, allowing any subsequent
+                   // enqueues to again put queue in ready
+                   // FIXME: tiny window here where queue could
+                   // receive new URI, be readied, fail not-in-process?
+                   inProcessQueues.remove(readyQ);
+                   readyQ.noteExhausted();
+                   readyQ.makeDirty();
+                   readyQ = null;
+                   continue findauri;
+               }
+           }
+       }
+       return curi;
+   }
+
+   @Override
+   protected boolean activateInactiveQueue() {
+       for (Entry<Integer, Queue<String>> entry: getInactiveQueuesByPrecedence().entrySet()) {
+           int expectedPrecedence = entry.getKey();
+           Queue<String> queueOfWorkQueueKeys = entry.getValue();
+
+           while (true) {
+               synchronized (getInactiveQueuesByPrecedence()) {
+                   String workQueueKey = queueOfWorkQueueKeys.poll();
+                   if (workQueueKey == null) {
+                       break;
+                   }
+
+                   WorkQueue candidateQ = (WorkQueue) this.allQueues.get(workQueueKey);
+                   if (candidateQ.getPrecedence() > expectedPrecedence) {
+                       // queue demoted since placed; re-deactivate
+                       deactivateQueue(candidateQ);
+                       candidateQ.makeDirty();
+                       continue; 
+                   }
+
+                   updateHighestWaiting(expectedPrecedence);
+                   try {
+                       readyClassQueues.put(workQueueKey);
+                       // begin diff
+                       readyLock.lock();
+                       try {
+                           queueReady.signal();
+                       } finally {
+                           readyLock.unlock();
+                       }
+                       // end diff
+                   } catch (InterruptedException e) {
+                       throw new RuntimeException(e); 
+                   } 
+                   
+                   return true; 
+               }
+           }
+       }
+       
+       return false;
+   }
+   
+   @Override
+   protected void updateHighestWaiting(int startFrom) {
+       readyLock.lock();
+       try {
+           super.updateHighestWaiting(startFrom);
+       } finally {
+           readyLock.unlock();
+       }
+   }
+   
+   @Override
+   protected void snoozeQueue(WorkQueue wq, long now, long delayMs) {
+       if (logger.isLoggable(Level.FINE))
+           logger.fine("snoozing " + wq.getClassKey() + " for " + delayMs + "ms");
+       super.snoozeQueue(wq, now, delayMs);
+       // let management thread (possibly waiting on Condition) know that
+       // snoozed queues have been changed and perhaps it needs to recalculate
+       // sleep time.
+       updateSnoozeTime(now + delayMs);
+   }
+   
+}

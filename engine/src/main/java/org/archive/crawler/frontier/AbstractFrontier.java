@@ -270,6 +270,12 @@ public abstract class AbstractFrontier
     protected AtomicLong totalProcessedBytes = new AtomicLong(0);
 
     /**
+     * count of queues getting readied. per-second count
+     * is useful for determining whether there's enough active
+     * queues.
+     */
+    protected AtomicLong queueReadiedCount = new AtomicLong(0);
+    /**
      * Crawl replay logger.
      * 
      * Currently captures Frontier/URI transitions.
@@ -460,7 +466,7 @@ public abstract class AbstractFrontier
      * processing. If none, return null. 
      * @return the eligible URI, or null
      */
-    abstract protected CrawlURI findEligibleURI();
+    abstract protected CrawlURI findEligibleURI() throws InterruptedException;
     
     
     /**
@@ -522,15 +528,14 @@ public abstract class AbstractFrontier
      */
     public void schedule(CrawlURI curi) {
         sheetOverlaysManager.applyOverlaysTo(curi);
-        if(curi.getClassKey()==null) {
-            // remedial processing
-            try {
-                KeyedProperties.loadOverridesFrom(curi);
+        try {
+            KeyedProperties.loadOverridesFrom(curi);
+            if (curi.getClassKey()==null)
+                // remedial processing
                 preparer.prepare(curi);
-                processScheduleIfUnique(curi);
-            } finally {
-                KeyedProperties.clearOverridesFrom(curi); 
-            }
+            processScheduleIfUnique(curi);
+        } finally {
+            KeyedProperties.clearOverridesFrom(curi); 
         }
     }
 

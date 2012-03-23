@@ -334,30 +334,30 @@ implements Closeable,
     }
     
     
-    /**
-     * Arrange for the given CrawlURI to be visited, if it is not
-     * already enqueued/completed. 
-     * 
-     * Differs from superclass in that it operates in calling thread, rather 
-     * than deferring operations via in-queue to managerThread. TODO: settle
-     * on either defer or in-thread approach after testing. 
-     *
-     * @see org.archive.crawler.framework.Frontier#schedule(org.archive.modules.CrawlURI)
-     */
-    @Override
-    public void schedule(CrawlURI curi) {
-        sheetOverlaysManager.applyOverlaysTo(curi);
-        try {
-            KeyedProperties.loadOverridesFrom(curi);
-            if(curi.getClassKey()==null) {
-                // remedial processing
-                preparer.prepare(curi);
-            }
-            processScheduleIfUnique(curi);
-        } finally {
-            KeyedProperties.clearOverridesFrom(curi); 
-        }
-    }
+//    /**
+//     * Arrange for the given CrawlURI to be visited, if it is not
+//     * already enqueued/completed. 
+//     * 
+//     * Differs from superclass in that it operates in calling thread, rather 
+//     * than deferring operations via in-queue to managerThread. TODO: settle
+//     * on either defer or in-thread approach after testing. 
+//     *
+//     * @see org.archive.crawler.framework.Frontier#schedule(org.archive.modules.CrawlURI)
+//     */
+//    @Override
+//    public void schedule(CrawlURI curi) {
+//        sheetOverlaysManager.applyOverlaysTo(curi);
+//        try {
+//            KeyedProperties.loadOverridesFrom(curi);
+//            if(curi.getClassKey()==null) {
+//                // remedial processing
+//                preparer.prepare(curi);
+//            }
+//            processScheduleIfUnique(curi);
+//        } finally {
+//            KeyedProperties.clearOverridesFrom(curi); 
+//        }
+//    }
 
     /**
      * Arrange for the given CrawlURI to be visited, if it is not
@@ -365,7 +365,7 @@ implements Closeable,
      *
      * @see org.archive.crawler.framework.Frontier#schedule(org.archive.modules.CrawlURI)
      */
-    protected void processScheduleIfUnique(CrawlURI curi) {
+    public void processScheduleIfUnique(CrawlURI curi) {
 //        assert Thread.currentThread() == managerThread;
         assert KeyedProperties.overridesActiveFrom(curi); 
         
@@ -388,7 +388,7 @@ implements Closeable,
 //        assert Thread.currentThread() == managerThread;
         
         WorkQueue wq = getQueueFor(curi.getClassKey());
-        synchronized(wq) {
+//        synchronized(wq) {
             int originalPrecedence = wq.getPrecedence();
             wq.enqueue(this, curi);
             // always take budgeting values from current curi
@@ -399,13 +399,27 @@ implements Closeable,
             if(!wq.isRetired()) {
                 incrementQueuedUriCount();
                 int currentPrecedence = wq.getPrecedence();
-                if(!wq.isManaged() || currentPrecedence < originalPrecedence) {
-                    // queue newly filled or bumped up in precedence; ensure enqueuing
+                if(currentPrecedence < originalPrecedence) {
+                    // queue bumped up in precedence; ensure enqueuing
                     // at precedence level (perhaps duplicate; if so that's handled elsewhere)
                     deactivateQueue(wq);
+                } else if (!wq.isManaged()) {
+                    // newly filled queue is ready immediately. if readyClassQueues is low,
+                    // make wq ready now.
+                    if (readyClassQueues.size() < 10) {
+                        // sounds strange, but this is the only way to do the right thing with
+                        // methods available. While WorkQueue in ready state should be considered "active"
+                        // by definition, current code does not turn active flag on until WQ's
+                        // goes in-process. noteDeactivated() turns "managed" on. it needs to be done
+                        // before calling readyQueue().
+                        wq.noteDeactivated();
+                        readyQueue(wq);
+                    } else {
+                        deactivateQueue(wq);
+                    }
                 }
             }
-        }
+//        }
         // Update recovery log.
         doJournalAdded(curi);
         wq.makeDirty();
@@ -577,7 +591,7 @@ implements Closeable,
      *
      * @see org.archive.crawler.framework.Frontier#next()
      */
-    protected CrawlURI findEligibleURI() {
+    protected CrawlURI findEligibleURI() throws InterruptedException {
             // wake any snoozed queues
             wakeQueues();
             // consider rescheduled URIS
@@ -1031,17 +1045,21 @@ implements Closeable,
      * @param now time now in ms 
      * @param delay_ms time to snooze in ms
      */
-    private void snoozeQueue(WorkQueue wq, long now, long delay_ms) {
+    protected void snoozeQueue(WorkQueue wq, long now, long delay_ms) {
         long nextTime = now + delay_ms;
         wq.setWakeTime(nextTime);
         DelayedWorkQueue dq = new DelayedWorkQueue(wq);
+        // although management thread may be touching snoozedClassQueue concurrently in wakeQueues(),
+        // it only removes element. So following code needs no additional synchronization.
         if(snoozedClassQueues.size()<MAX_SNOOZED_IN_MEMORY) {
             snoozedClassQueues.add(dq);
         } else {
+            // ... but this synchronization is required here because wakeQueues() uses an Iterator
+            // to loop over elements. Concurrent modification would cause IllegalStateException.
             synchronized(snoozedOverflow) {
                 snoozedOverflow.put(nextTime, dq);
-                snoozedOverflowCount.incrementAndGet();
             }
+            snoozedOverflowCount.incrementAndGet();
         }
     }
 
@@ -1115,6 +1133,7 @@ implements Closeable,
         map.put("retiredQueues", retiredCount);
         map.put("exhaustedQueues", exhaustedCount);
         map.put("lastReachedState", lastReachedState);
+        map.put("queueReadiedCount", queueReadiedCount.get());
 
         return map;
     }
