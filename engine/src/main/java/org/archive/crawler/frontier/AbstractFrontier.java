@@ -466,7 +466,7 @@ public abstract class AbstractFrontier
      * processing. If none, return null. 
      * @return the eligible URI, or null
      */
-    abstract protected CrawlURI findEligibleURI() throws InterruptedException;
+    abstract protected CrawlURI findEligibleURI();
     
     
     /**

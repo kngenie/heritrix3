@@ -591,7 +591,7 @@ implements Closeable,
      *
      * @see org.archive.crawler.framework.Frontier#next()
      */
-    protected CrawlURI findEligibleURI() throws InterruptedException {
+    protected CrawlURI findEligibleURI() {
             // wake any snoozed queues
             wakeQueues();
             // consider rescheduled URIS

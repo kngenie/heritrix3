@@ -209,15 +209,27 @@ public class PullingBdbFrontier extends BdbFrontier {
         
         CrawlURI crawlable = null;
         do {
-            long t1 = System.currentTimeMillis();
-            if (logger.isLoggable(Level.FINE))
-                logger.fine("calling findEligibleURI()");
-            // now findEligibleURI() will block until at least one queue becomes
-            // ready. this is the new parking point for ToeThreads.
-            crawlable = findEligibleURI();
-            if (logger.isLoggable(Level.FINE))
-                logger.fine(String.format("findEligibleURI() done in %dms",
-                    System.currentTimeMillis() - t1));
+            if (targetState == State.RUN) {
+                long t1 = System.currentTimeMillis();
+                if (logger.isLoggable(Level.FINE))
+                    logger.fine("calling findEligibleURI()");
+                crawlable = findEligibleURI();
+                if (logger.isLoggable(Level.FINE))
+                    logger.fine(String.format("findEligibleURI() done in %dms",
+                            System.currentTimeMillis() - t1));
+            }
+            // if CrawlURI is unavailable due to readyQueue exhaustion or PAUSED state
+            // sleep until notified of situation change.
+            if (crawlable == null) {
+                readyLock.lock();
+                try {
+                    queueReady.await();
+                    if (logger.isLoggable(Level.FINE))
+                        logger.fine("resumed");
+                } finally {
+                    readyLock.unlock();
+                }
+            }
         } while (crawlable == null);
         
         if (logger.isLoggable(Level.FINE))
@@ -316,7 +328,7 @@ public class PullingBdbFrontier extends BdbFrontier {
      *
      * @see org.archive.crawler.framework.Frontier#next()
      */
-    protected CrawlURI findEligibleURI() throws InterruptedException {
+    protected CrawlURI findEligibleURI() {
         // wake any snoozed queues - this is now done by managementTasks()
         //wakeQueues();
         // consider rescheduled URIS
@@ -327,47 +339,17 @@ public class PullingBdbFrontier extends BdbFrontier {
         findauri: while (true) {
             // find a non-empty ready queue, if any
             WorkQueue readyQ = null;
-            findaqueue: do {
+            do {
                 String key = null;
                 do {
-                    if (targetState == State.RUN) {
-                        // if size of readyClassQueue dropped below configured
-                        // level, trigger "pulling" so that more queues will
-                        // become ready before readyClassQueue gets exhausted.
-                        int readyLevel = readyClassQueues.size();
-                        if (readyLevel < pullTriggerLevel) {
-                            if (pullURIs())
-                                continue;
-                        }
-                        key = readyClassQueues.poll();
-                        if (key == null) {
-                            if (pullURIs())
-                                continue;
-                            if (key == null) {
-                                readyLock.lock();
-                                try {
-                                    if (logger.isLoggable(Level.FINE))
-                                        logger.fine("readyClassQueue empty, suspending");
-                                    queueReady.await();
-                                    if (logger.isLoggable(Level.FINE))
-                                        logger.fine("resumed");
-                                } finally {
-                                    readyLock.unlock();
-                                }
-                            }
-                        }
-                    } else {
-                        readyLock.lock();
-                        try {
-                            if (logger.isLoggable(Level.FINE))
-                                logger.fine("state " + targetState
-                                        + ", suspending");
-                            queueReady.await();
-                            if (logger.isLoggable(Level.FINE))
-                                logger.fine("resumed");
-                        } finally {
-                            readyLock.unlock();
-                        }
+                    if (targetState != State.RUN) return null;
+                    // if size of readyClassQueue dropped below configured
+                    // level, trigger "pulling" so that more queues will
+                    // become ready before readyClassQueue gets exhausted.
+                    int readyLevel = readyClassQueues.size();
+                    if (readyLevel < pullTriggerLevel || (key = readyClassQueues.poll()) == null) {
+                        if (pullURIs()) continue;
+                        return null;
                     }
                 } while (key == null);
                 if (logger.isLoggable(Level.FINE))
