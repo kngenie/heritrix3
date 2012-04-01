@@ -54,10 +54,16 @@ public class HBaseClient implements Lifecycle {
     }
     
     public void put(Put p) throws IOException {
-        // HTable.put() buffers Puts and access to the buffer is not
-        // synchronized.
-        synchronized (table) {
-            table.put(p);
+        // HTable.put() throws NullPointerException when connection is lost.
+        // It is somewhat weird, so translate it to IOException.
+        try {
+            // HTable.put() buffers Puts and access to the buffer is not
+            // synchronized.
+            synchronized (table) {
+                table.put(p);
+            }
+        } catch (NullPointerException ex) {
+            throw new IOException("connection is lost");
         }
     }
     
@@ -65,11 +71,9 @@ public class HBaseClient implements Lifecycle {
         return table.get(g);
     }
     
-    @Override
     public boolean isRunning() {
         return table != null;
     }
-    @Override
     public void start() {
         // TODO if multiple HTable are used, they should share Configuration
         // object. we may want to cut out HBaseConfiguration as separate bean,
@@ -82,7 +86,6 @@ public class HBaseClient implements Lifecycle {
             throw new IllegalStateException(ex);
         }
     }
-    @Override
     public void stop() {
         table = null;
     }

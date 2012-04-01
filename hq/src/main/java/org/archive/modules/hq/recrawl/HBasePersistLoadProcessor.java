@@ -19,9 +19,6 @@
 package org.archive.modules.hq.recrawl;
 
 import java.io.IOException;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
@@ -33,13 +30,15 @@ import org.apache.hadoop.hbase.util.Bytes;
 import org.archive.modules.CrawlURI;
 import org.archive.modules.ProcessResult;
 import org.archive.modules.Processor;
-import org.archive.modules.fetcher.FetchStatusCodes;
+import org.archive.modules.recrawl.FetchHistoryProcessor;
 import org.archive.modules.recrawl.PersistLoadProcessor;
 import org.archive.modules.recrawl.RecrawlAttributeConstants;
 
 /**
  * A {@link Processor} for retrieving recrawl info from HBase table.
  * See {@link HBasePersistProcessor} for table schema.
+ * As with other fetch history processors, this needs to be combined with {@link FetchHistoryProcessor}
+ * (set up after FetchHTTP, before WarcWriter) to work.
  * @see HBasePersistStoreProcessor
  * @contributor kenji
  */
@@ -47,16 +46,13 @@ public class HBasePersistLoadProcessor extends HBasePersistProcessor {
     private static final Logger logger =
         Logger.getLogger(PersistLoadProcessor.class.getName());
 
-    protected static final DateFormat HTTP_DATE_FORMAT = 
-        new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz");
-
-    protected String formatHttpDate(long time) {
-        synchronized (HTTP_DATE_FORMAT) {
-            // format is not thread safe either
-            return HTTP_DATE_FORMAT.format(new Date(time * 1000));
-        }
-    }
-
+    /**
+     * retrieve {@link RecrawlAttributeConstants#A_FETCH_HISTORY} member from {@link CrawlURI}
+     * user data ({@link CrawlURI#getData()}. if the member does not exist, initializes it with
+     * new HashMap array of length two.
+     * @param uri
+     * @return Map array object for holding re-crawl data (never null). element may be null.
+     */
     @SuppressWarnings("unchecked")
     protected static Map<String, Object>[] getFetchHistory(CrawlURI uri) {
         Map<String, Object> data = uri.getData();
@@ -72,6 +68,10 @@ public class HBasePersistLoadProcessor extends HBasePersistProcessor {
     
     @Override
     protected ProcessResult innerProcessResult(CrawlURI uri) throws InterruptedException {
+//        Map<String, Object>[] history = getFetchHistory(uri);
+//        history[0] = new HashMap<String, Object>();
+//        history[1] = new HashMap<String, Object>();
+        
         byte[] uriBytes = Bytes.toBytes(uri.toString());
         byte[] key = uriBytes;
         Get g = new Get(key);
@@ -83,38 +83,12 @@ public class HBasePersistLoadProcessor extends HBasePersistProcessor {
                     logger.fine(uri + ": <no crawlinfo>");
                 return ProcessResult.PROCEED;
             }
-            // check for "do-not-crawl" flag - any non-empty data tells not to crawl
-            // this URL.
-            byte[] nocrawl = r.getValue(COLUMN_FAMILY, COLUMN_NOCRAWL);
-            if (nocrawl != null && nocrawl.length > 0) {
-                uri.setFetchStatus(FetchStatusCodes.S_OUT_OF_SCOPE);
-                uri.getAnnotations().add("nocrawl");
+            schema.load(r, uri);
+            if (uri.getFetchStatus() < 0) {
                 return ProcessResult.FINISH;
             }
-            Map<String, Object>[] history = getFetchHistory(uri);
-            Map<String, Object> h0 = history[0] = new HashMap<String, Object>();
-            // FetchHTTP ignores history with status <= 0
-            byte[] status = r.getValue(COLUMN_FAMILY, COLUMN_STATUS);
-            if (status != null) {
-                // Note that status is stored as integer text. It's typically three-chars
-                // that is less than 4-byte integer bits.
-                h0.put(RecrawlAttributeConstants.A_STATUS, Integer.parseInt(Bytes.toString(status)));
-                byte[] etag = r.getValue(COLUMN_FAMILY, COLUMN_ETAG);
-                if (etag != null) {
-                    h0.put(RecrawlAttributeConstants.A_ETAG_HEADER, Bytes.toString(etag));
-                }
-                byte[] lastmod = r.getValue(COLUMN_FAMILY, COLUMN_LAST_MODIFIED);
-                if (lastmod != null) {
-                    long lastmod_sec = Bytes.toLong(lastmod);
-                    h0.put(RecrawlAttributeConstants.A_LAST_MODIFIED_HEADER, formatHttpDate(lastmod_sec));
-                }
-                byte[] digest = r.getValue(COLUMN_FAMILY, COLUMN_CONTENT_DIGEST);
-                if (digest != null) {
-                    h0.put(RecrawlAttributeConstants.A_CONTENT_DIGEST, Bytes.toString(digest));
-                }
-            }
-            if (logger.isLoggable(Level.FINE))
-                logger.fine(uri + ": FETCH_HISTORY=" + history);
+//            if (logger.isLoggable(Level.FINE))
+//                logger.fine(uri + ": FETCH_HISTORY=" + history);
         } catch (IOException ex) {
             logger.warning("Get failed for " + uri);
         }
