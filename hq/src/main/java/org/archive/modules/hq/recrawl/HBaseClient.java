@@ -34,6 +34,7 @@ import org.springframework.context.Lifecycle;
  */
 public class HBaseClient implements Lifecycle {
     private HTable table;
+    boolean autoReconnect = true;
     
     protected String zookeeperQuorum = "localhost";
     public void setZookeeperQuorum(String zookeeperQuorum) {
@@ -49,7 +50,18 @@ public class HBaseClient implements Lifecycle {
     public String getHtableName() {
         return htableName;
     }
-    
+    public boolean isAutoReconnect() {
+        return autoReconnect;
+    }
+    /**
+     * if set to {@code true}, HBaseClient tries to reconnect to the HBase master
+     * immediately when Put request failed due to connection loss (note {@link #put(Put)}
+     * still throws IOException even if autoReconnect is enabled.)
+     * @param autoReconnect true to enable auto-reconnect
+     */
+    public void setAutoReconnect(boolean autoReconnect) {
+        this.autoReconnect = autoReconnect;
+    }
     public HBaseClient() {
     }
     
@@ -63,6 +75,8 @@ public class HBaseClient implements Lifecycle {
                 table.put(p);
             }
         } catch (NullPointerException ex) {
+            if (autoReconnect)
+                connect();
             throw new IOException("connection is lost");
         }
     }
@@ -75,6 +89,14 @@ public class HBaseClient implements Lifecycle {
         return table != null;
     }
     public void start() {
+        connect();
+    }
+    /**
+     * connect to HBase.
+     * this method is public so that reconnection may be forced by external code
+     * when something goes wrong and auto-reconnect does not work.
+     */
+    public void connect() {
         // TODO if multiple HTable are used, they should share Configuration
         // object. we may want to cut out HBaseConfiguration as separate bean,
         // or make single HBaseClient capable of handling multiple HTables. 
