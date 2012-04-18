@@ -92,9 +92,19 @@ public class PullingBdbFrontier extends BdbFrontier {
     public void requestState(State target) {
         super.requestState(target);
         // notify state change
-        snoozeLock.lock();
-        snoozeUpdated.signal();
-        snoozeLock.unlock();
+        if (target != lastReachedState) {
+            if (targetState == State.RUN) {
+                readyLock.lock();
+                // resume just one thread and it will resume other threads
+                // if more CrawlURIs are available.
+                queueReady.signal();
+                readyLock.unlock();
+            }
+            // notify management thread of targetState change.
+            snoozeLock.lock();
+            snoozeUpdated.signal();
+            snoozeLock.unlock();
+        }
     }
     
     @Override
@@ -103,92 +113,64 @@ public class PullingBdbFrontier extends BdbFrontier {
         // which is safe but just a waste of CPU cycles if management thread itself is updating targetState.
         while (lastReachedState != State.FINISH) {
             try {
-                // if targetState is different from lastReachedState, perform
-                // transitional operations and check if transition has completed.
-                // note the call to reachedState() can update targetState to next target state.
-                // see CrawlController.noteFrontierState().
-                if (targetState != lastReachedState) {
-                    switch (targetState) {
-                    case EMPTY:
-                        reachedState(State.EMPTY);
-                        break;
-                    case RUN:
-                        readyLock.lock();
-                        // resume just one thread and it will resume other threads
-                        // if more CrawlURIs are available.
-                        queueReady.signal();
-                        readyLock.unlock();
-                        reachedState(State.RUN);
-                        break;
-                    case HOLD:
-                        // TODO; for now treat same as PAUSE
-                    case PAUSE:
-                        if (getInProcessCount() == 0)
-                            reachedState(State.PAUSE);
-                        break;
-                    case FINISH:
-                        if (getInProcessCount() == 0) {
-                            finalTasks();
-                            reachedState(State.FINISH);
-                        }
-                        break;
-                    }
-                }
-                // perform operations for current target state. operations is chosen
-                // by targetState, not lastReachedState (current state). For example,
-                // it makes no sense to wake up queues while waiting for Frontier to PAUSE.
+                // perform operations for current target state. note operations is chosen
+                // by targetState, not lastReachedState, because operation includes what's
+                // needed to reach the targetState.
+                long sleepms = 1000L;
                 switch (targetState) {
                 case EMPTY:
-                    if (!isEmpty())
+                    if (!isEmpty()) {
                         targetState = State.RUN;
+                        sleepms = 0;
+                        break;
+                    }
+                    reachedState(State.EMPTY);
                     break;
                 case RUN:
+                    if (isEmpty()) {
+                        targetState = State.EMPTY;
+                        sleepms = 0;
+                        break;
+                    }
+                    reachedState(State.RUN);
                     // move queues who finished snoozing to ready queue then sleep until
                     // the time for the next wake up call.
                     wakeQueues();
                     // TODO: we need to take queues in snoozedOverflow into account for completeness
                     DelayedWorkQueue head = snoozedClassQueues.peek();
                     long nextWake = head != null ? head.getWakeTime() : Long.MAX_VALUE;
-                    long delay = nextWake - System.currentTimeMillis();
-                    if (delay > 0) {
-                        // currently snoozeUpdate is not triggered when crawler becomes
-                        // empty. until we implement it, limit sleep to max 1 seconds.
-                        if (delay > 1000) delay = 1000;
-                        if (logger.isLoggable(Level.FINE))
-                            logger.fine("suspending for " + delay + "ms");
-                        snoozeLock.lock();
-                        try {
-                            nextWakeTime = nextWake;
-                            snoozeUpdated.await(delay, TimeUnit.MILLISECONDS);
-                        } catch (InterruptedException ex) {
-                            // another wayt to resume
-                        } finally {
-                            snoozeLock.unlock();
-                        }
-                        if (logger.isLoggable(Level.FINE))
-                            logger.fine("resumed");
-                    }
-                    if (isEmpty())
-                        targetState = State.EMPTY;
+                    sleepms = nextWake - System.currentTimeMillis();
+                    if (sleepms > 1000L) sleepms = 1000L;
+                    // TODO: risk of other threads' reading partially updated value?
+                    // false alarm from updateSnoozeTime doesn't hurt.
+                    nextWakeTime = nextWake;
                     break;
                 case HOLD:
                 case PAUSE:
-                    snoozeLock.lock();
-                    try {
-                        // suspend indefinitely until resumed by requestState()
-                        //snoozeUpdated.await();
-                        // currently snoozeUpdated is not triggered when inProcessCount
-                        // changes. wait() needs timeout so that reachedState(PAUSE) above
-                        // gets called.
-                        snoozeUpdated.await(1000L, TimeUnit.MILLISECONDS);
-                    } catch (InterruptedException ex) {
-                        // another way to resume.
-                    } finally {
-                        snoozeLock.unlock();
+                    if (targetState != lastReachedState) {
+                        if (getInProcessCount() == 0)
+                            reachedState(State.PAUSE);
                     }
                     break;
                 case FINISH:
+                    if (targetState != lastReachedState) {
+                        if (getInProcessCount() == 0) {
+                            finalTasks();
+                            reachedState(State.FINISH);
+                            sleepms = 0;
+                        }
+                    }
                     break;
+                }
+                if (sleepms > 0) {
+                    snoozeLock.lock();
+                    try {
+                        snoozeUpdated.await(sleepms, TimeUnit.MILLISECONDS);
+                    } catch (InterruptedException ex) {
+                        //
+                    } finally {
+                        snoozeLock.unlock();
+                    }
                 }
             } catch (RuntimeException ex) {
                 // log, try to pause, continue
