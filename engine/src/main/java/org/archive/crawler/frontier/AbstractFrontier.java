@@ -404,9 +404,19 @@ public abstract class AbstractFrontier
                                 if (logger.isLoggable(Level.FINE))
                                     logger.fine("resumed");
                             }
-                            if(isEmpty()&&targetState==State.RUN) {
-                                targetState = State.EMPTY;
-                            } else if (!isEmpty()&&targetState==State.EMPTY) {
+                            if (isEmpty()) {
+                                if (targetState == State.RUN)
+                                    targetState = State.EMPTY;
+                                else {
+                                    // wake up one ToeTherad to pull CURLs
+                                    readyLock.lock();
+                                    try {
+                                        queueReady.signal();
+                                    } finally {
+                                        readyLock.unlock();
+                                    }
+                                }
+                            } else if (targetState == State.EMPTY) {
                                 targetState = State.RUN;
                             }
                         } while (targetState == reachedState);

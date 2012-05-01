@@ -408,6 +408,8 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
     public long getFeedCount() {
         return feedCount.get();
     }
+    // number of CURIs read by the last feed call.
+    private int lastFeedCount = 0;
     
     @Override
     public long requestFlush() {
@@ -422,7 +424,7 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
                 if (logger.isLoggable(Level.FINE))
                     logger.fine("getCrawlURIs() done in " + (System.currentTimeMillis() - t0) +
                             "ms, " + uris.length + " URIs");
-                long count = 0;
+                int count = 0;
                 for (CrawlURI uri : uris) {
                     if (uri != null) {
                         schedule(uri);
@@ -430,6 +432,7 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
                     }
                 }
                 feedCount.addAndGet(count);
+                lastFeedCount = count;
                 return count;
             } finally {
                 feedLock.unlock();
@@ -501,14 +504,13 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
 
     /**
      * {@inheritDoc}
-     * always returns 1.
-     * as this method is used by {@link org.archive.crawler.frontier.WorkQueueFrontier} to
-     * decide if crawl job reached its end, it means HQ-based crawl never ends.
-     * <p>In the future, HQ may send a message (in response to feed request) to signify job end.</p>
+     * returns 1 if last feed count was greater than zero.
+     * this makes {@link org.archive.crawler.frontier.WorkQueueFrontier} return true when
+     * headquarter queue becomes empty.
      */
     @Override
     public long pending() {
-        return 1;
+        return lastFeedCount > 0 ? 1 : 0;
     }
 
     @Override
