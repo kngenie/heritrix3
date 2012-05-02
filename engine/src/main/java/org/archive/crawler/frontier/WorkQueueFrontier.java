@@ -697,7 +697,7 @@ implements Closeable,
                         do {
                             // XXX WorkQueueFrontier should not make direct reference
                             // to targetState
-                            if (targetState == State.RUN) {
+                            if (targetState == State.RUN || targetState == State.EMPTY) {
                                 // if size of readyClassQueue dropped below configured level,
                                 // trigger "pulling" so that more queues will become ready before
                                 // readyClassQueue gets exhausted.
