@@ -5,12 +5,12 @@
   <parent>
     <artifactId>heritrix</artifactId>
     <groupId>org.archive</groupId>
-    <version>3.1.1-SNAPSHOT</version>
+    <version>3.1.2-SNAPSHOT</version>
   </parent>
   <groupId>org.archive</groupId>
   <artifactId>heritrix-hq</artifactId>
   <packaging>jar</packaging>
-  <version>3.1.1-SNAPSHOT</version>
+  <version>3.1.2-SNAPSHOT</version>
   <name>Heritrix 3: 'hq' subproject (Headquarter)</name>
   <url>http://maven.apache.org</url>
   <properties>
