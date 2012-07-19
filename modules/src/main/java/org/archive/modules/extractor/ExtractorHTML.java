@@ -61,6 +61,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  */
 public class ExtractorHTML extends ContentExtractor implements InitializingBean {
 
+    @SuppressWarnings("unused")
     private static final long serialVersionUID = 2L;
 
     private static Logger logger =
@@ -777,7 +778,7 @@ public class ExtractorHTML extends ContentExtractor implements InitializingBean 
      * is TRANSIENT data. Make a copy if you want the data to live outside
      * of this extractors' lifetime.
      */
-    void extract(CrawlURI curi, CharSequence cs) {
+    protected void extract(CrawlURI curi, CharSequence cs) {
         Matcher tags = TextUtils.getMatcher(relevantTagPattern,cs);
         while(tags.find()) {
             if(Thread.interrupted()){

@@ -23,7 +23,6 @@ import java.beans.IntrospectionException;
 import java.beans.PropertyDescriptor;
 import java.io.File;
 import java.io.PrintWriter;
-import java.net.URLEncoder;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -55,9 +54,9 @@ import org.springframework.beans.InvalidPropertyException;
  * @contributor nlevitt
  */
 public abstract class JobRelatedResource extends BaseResource {
-    CrawlJob cj; 
+    protected CrawlJob cj; 
 
-    IdentityHashMap<Object, String> beanToNameMap;
+    protected IdentityHashMap<Object, String> beanToNameMap;
     
     public JobRelatedResource(Context ctx, Request req, Response res) throws ResourceException {
         super(ctx, req, res);
@@ -177,7 +176,7 @@ public abstract class JobRelatedResource extends BaseResource {
                     }
                 }
                 if(obj instanceof Iterable) {
-                    for (Object next : (Iterable)obj) {
+                    for (Object next : (Iterable<Object>)obj) {
                         writeNestedNames(pw, next, prefix, alreadyWritten);
                     }
                 }
@@ -411,7 +410,6 @@ public abstract class JobRelatedResource extends BaseResource {
      * @param alreadyWritten Set of objects to not redundantly write
      * @param beanPathPrefix beanPath prefix to apply to sub fields browse links
      */
-    @SuppressWarnings("unchecked")
     protected void writeObject(PrintWriter pw, String field, Object object, HashSet<Object> alreadyWritten, String beanPathPrefix) {
             String key = getBeanToNameMap().get(object);
             String close = "";
@@ -497,14 +495,15 @@ public abstract class JobRelatedResource extends BaseResource {
                     writeObject(pw, i+"", list.get(i), alreadyWritten, beanPathPrefix);
                 }
             } else if(object instanceof Iterable) {
-                for (Object next : (Iterable)object) {
+                @SuppressWarnings("unchecked")
+                Iterable<Object> itbl = (Iterable<Object>)object;
+                for (Object next : itbl) {
                     writeObject(pw, "#", next, alreadyWritten, null);
                 }
             }
             if(object instanceof Map) {
-                for (Object next : ((Map)object).entrySet()) {
+                for (Map.Entry<?, ?> entry : ((Map<?, ?>)object).entrySet()) {
                     // TODO: protect against giant maps?
-                    Map.Entry<?, ?> entry = (Map.Entry<?, ?>)next;
                     if(beanPath!=null) {
                         beanPathPrefix = beanPath+"[";
                     }
@@ -517,7 +516,7 @@ public abstract class JobRelatedResource extends BaseResource {
         }
 
     /** suppress problematic properties */
-    static HashSet<String> HIDDEN_PROPS = new HashSet<String>(
+    protected static HashSet<String> HIDDEN_PROPS = new HashSet<String>(
             Arrays.asList(new String[]
              {"class","declaringClass","keyedProperties","running","first","last","empty", "inbound", "outbound", "cookiesMap"}
             ));
