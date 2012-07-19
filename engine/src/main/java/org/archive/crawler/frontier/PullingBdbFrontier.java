@@ -125,6 +125,13 @@ public class PullingBdbFrontier extends BdbFrontier {
                         break;
                     }
                     reachedState(State.EMPTY);
+                    // wake up one ToeThread to pull CURLs
+                    readyLock.lock();
+                    try {
+                        queueReady.signal();
+                    } finally {
+                        readyLock.unlock();
+                    }
                     break;
                 case RUN:
                     if (isEmpty()) {
@@ -324,7 +331,7 @@ public class PullingBdbFrontier extends BdbFrontier {
             do {
                 String key = null;
                 do {
-                    if (targetState != State.RUN) return null;
+                    if (targetState != State.RUN && targetState != State.EMPTY) return null;
                     // if size of readyClassQueue dropped below configured
                     // level, trigger "pulling" so that more queues will
                     // become ready before readyClassQueue gets exhausted.
