@@ -41,11 +41,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -297,18 +293,15 @@ public abstract class AbstractFrontier
      * @param description Description for this frontier.
      */
     public AbstractFrontier() {
-        this.readyLock = new ReentrantLock();
-        this.queueReady = this.readyLock.newCondition();
-        this.snoozeLock = new ReentrantLock();
-        this.snoozeUpdated = this.snoozeLock.newCondition();
+
     }
 
-//    /** 
-//     * lock to allow holding all worker ToeThreads from taking URIs already
-//     * on the outbound queue; they acquire read permission before take()ing;
-//     * frontier can acquire write permission to hold threads */
-//    protected ReentrantReadWriteLock outboundLock = 
-//        new ReentrantReadWriteLock(true);
+    /** 
+     * lock to allow holding all worker ToeThreads from taking URIs already
+     * on the outbound queue; they acquire read permission before take()ing;
+     * frontier can acquire write permission to hold threads */
+    protected ReentrantReadWriteLock outboundLock = 
+        new ReentrantReadWriteLock(true);
     
     
     /**
@@ -347,7 +340,6 @@ public abstract class AbstractFrontier
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
-        
         pause();
         startManagerThread();
     }
@@ -372,90 +364,41 @@ public abstract class AbstractFrontier
                         reachedState = State.EMPTY; 
                     case RUN:
                         // enable outbound takes if previously locked
-//                        while(outboundLock.isWriteLockedByCurrentThread()) {
-//                            outboundLock.writeLock().unlock();
-//                        }
-                        readyLock.lock();
-                        //queueReady.signalAll();
-                        // resume just one thread and it will resume other threads
-                        // as CrawlURI become available.
-                        queueReady.signal();
-                        readyLock.unlock();
+                        while(outboundLock.isWriteLockedByCurrentThread()) {
+                            outboundLock.writeLock().unlock();
+                        }
                         if(reachedState==null) {
-                            reachedState= State.RUN;
+                            reachedState = State.RUN; 
                         }
                         reachedState(reachedState);
-                        do {
-                            long nextWake = wakeQueues();
-                            long delay = nextWake - System.currentTimeMillis();
-                            if (delay > 0) {
-                                // currently snoozeUpdate is not triggered when crawler becomes
-                                // empty. until we implement it, limit sleep to max 1 seconds.
-                                if (delay > 1000) delay = 1000;
-                                if (logger.isLoggable(Level.FINE))
-                                    logger.fine("suspending for " + delay + "ms");
-                                snoozeLock.lock();
-                                try {
-                                    nextWakeTime = nextWake;
-                                    snoozeUpdated.await(delay, TimeUnit.MILLISECONDS);
-                                } finally {
-                                    snoozeLock.unlock();
-                                }
-                                if (logger.isLoggable(Level.FINE))
-                                    logger.fine("resumed");
-                            }
-                            if (isEmpty()) {
-                                if (targetState == State.RUN)
-                                    targetState = State.EMPTY;
-                                else {
-                                    // wake up one ToeTherad to pull CURLs
-                                    readyLock.lock();
-                                    try {
-                                        queueReady.signal();
-                                    } finally {
-                                        readyLock.unlock();
-                                    }
-                                }
-                            } else if (targetState == State.EMPTY) {
-                                targetState = State.RUN;
-                            }
-                        } while (targetState == reachedState);
+                        
+                        Thread.sleep(1000);
+                        
+                        if(isEmpty()&&targetState==State.RUN) {
+                            requestState(State.EMPTY); 
+                        } else if (!isEmpty()&&targetState==State.EMPTY) {
+                            requestState(State.RUN); 
+                        }
                         break;
                     case HOLD:
                         // TODO; for now treat same as PAUSE
                     case PAUSE:
                         // pausing
                         // prevent all outbound takes
-//                        outboundLock.writeLock().lock();
-                        while (targetState == State.PAUSE && getInProcessCount() > 0) {
-                            // use of Thread.sleep() prevents operator from unpausing the
-                            // crawler until all threads finish current processing.
-                            //Thread.sleep(1000);
-                            snoozeLock.lock();
-                            try {
-                                snoozeUpdated.await(1, TimeUnit.SECONDS);
-                            } finally {
-                                snoozeLock.unlock();
-                            }
-                        }
-                        reachedState(State.PAUSE);
-                        // call to reachedState() can change targetState to other than
-                        // State.PAUSE. see CrawlController.noteFrontierState().
+                        outboundLock.writeLock().lock();
+                        // process all inbound
                         while (targetState == State.PAUSE) {
-                            snoozeLock.lock();
-                            try {
-                                // suspend indefinitely until resumed by requestState()
-                                snoozeUpdated.await();
-                            } finally {
-                                snoozeLock.unlock();
+                            if (getInProcessCount()==0) {
+                                reachedState(State.PAUSE);
                             }
+                            
+                            Thread.sleep(1000);
                         }
                         break;
                     case FINISH:
                         // prevent all outbound takes
-//                        outboundLock.writeLock().lock();
-                        // execution of finalTasks() must wait until all ToeThreads
-                        // finish current processing. TODO: use of sleep() is ugly.
+                        outboundLock.writeLock().lock();
+                        // process all inbound
                         while (getInProcessCount()>0) {
                             Thread.sleep(1000);
                         }
@@ -469,30 +412,19 @@ public abstract class AbstractFrontier
                     // log, try to pause, continue
                     logger.log(Level.SEVERE,"",e);
                     if(targetState!=State.PAUSE && targetState!=State.FINISH) {
-                        // do not use requestState(), which signals management thread
-                        // through snoozeUpdated Condition of state change - waste of
-                        // CPU cycles.
-                        //requestState(State.PAUSE);
-                        targetState = State.PAUSE;
+                        requestState(State.PAUSE);
                     }
                 }
             }
         } catch (InterruptedException e) {
-            // XXX should never reach here - all exception shall be
-            // handled by inner try-catch.
             throw new RuntimeException(e);
         } 
         
-        // try to leave in safely restartable state:
-        // XXX: if management thread no longer exists, who can handle
-        // targetState change?
+        // try to leave in safely restartable state: 
         targetState = State.PAUSE;
-        // TODO: following code allows ToeThread to continue running
-        // despite targetState == State.PAUSE. such state is not supported
-        // in current code.
-//        while(outboundLock.isWriteLockedByCurrentThread()) {
-//            outboundLock.writeLock().unlock();
-//        }
+        while(outboundLock.isWriteLockedByCurrentThread()) {
+            outboundLock.writeLock().unlock();
+        }
         //TODO: ensure all other structures are cleanly reset on restart
         
         logger.log(Level.FINE,"ending frontier mgr thread");
@@ -524,47 +456,24 @@ public abstract class AbstractFrontier
      * @see org.archive.crawler.framework.Frontier#next()
      */
     public CrawlURI next() throws InterruptedException {
-        long t0 = System.currentTimeMillis();
-        
-        CrawlURI crawlable = null; //outbound.poll();
-        do {
+        CrawlURI crawlable = null;
+        while(crawlable==null) {
+            outboundLock.readLock().lockInterruptibly();
             // try filling outbound until we get something to work on
-            long t1 = System.currentTimeMillis();
-            if (logger.isLoggable(Level.FINE))
-                logger.fine("calling findEligibleURI()");
-            // now findEligibleURI() will block until at least one queue becomes
-            // ready. this is the new parking point for ToeThreads.
             crawlable = findEligibleURI();
-            if (logger.isLoggable(Level.FINE))
-                logger.fine(String.format("findEligibleURI() done in %dms",
-                    System.currentTimeMillis() - t1));
-        } while (crawlable == null);
-        
-        if (logger.isLoggable(Level.FINE))
-            logger.fine(String.format("got URI in %dms",
-                    System.currentTimeMillis() - t0));
+            outboundLock.readLock().unlock();
+        }
         return crawlable;
     }
 
     /**
-     * Find a CrawlURI eligible and put it on the outbound queue for 
-     * processing. If none found, return null. 
-     * @throws InterruptedException 
+     * Find a CrawlURI eligible to be put on the outbound queue for 
+     * processing. If none, return null. 
+     * @return the eligible URI, or null
      */
-    abstract protected CrawlURI findEligibleURI() throws InterruptedException;
+    abstract protected CrawlURI findEligibleURI();
     
-    /**
-     * Wake any queues sitting in the snoozed queue whose time has come.
-     * <p>
-     * FIXME: bad name. {@link AbstractFrontier} should not be aware of "WorkQueue".
-     * this method has been promoted from {@link WorkQueueFrontier} - think of more
-     * abstract name suitable for {@link AbstractFrontier}.
-     * </p>
-     * @return return time (in ms) this method should be run. 
-     * or Long.MAX_VALUE if there's nothing to wake in the horizon.
-     */
-    abstract protected long wakeQueues();
-
+    
     /**
      * Schedule the given CrawlURI regardless of its already-seen status. Only
      * to be called inside the managerThread, as by an InEvent. 
@@ -607,7 +516,6 @@ public abstract class AbstractFrontier
      * queue. If any queues are waiting out politeness/retry delays ('snoozed'),
      * the maximum wait should be no longer than the shortest sch delay. 
      * @return maximum time to wait, in milliseconds
-     * @obsoleted this parameter has no effect.
      */
     abstract protected long getMaxInWait();
     
@@ -627,7 +535,7 @@ public abstract class AbstractFrontier
         sheetOverlaysManager.applyOverlaysTo(curi);
         try {
             KeyedProperties.loadOverridesFrom(curi);
-            if (curi.getClassKey() == null)
+            if (curi.getClassKey()==null)
                 // remedial processing
                 preparer.prepare(curi);
             processScheduleIfUnique(curi);
@@ -693,9 +601,6 @@ public abstract class AbstractFrontier
      */
     public void requestState(State target) {
         targetState = target;
-        snoozeLock.lock();
-        snoozeUpdated.signal();
-        snoozeLock.unlock();
     }
     
     public void pause() {
@@ -1201,8 +1106,7 @@ public abstract class AbstractFrontier
             // again. If no rfc2617 loaded, we should not be here.
             boolean loaded = curi.hasRfc2617Credential();
             if (!loaded && logger.isLoggable(Level.FINE)) {
-                if (logger.isLoggable(Level.FINE))
-                    logger.fine("Have 401 but no creds loaded " + curi);
+                logger.fine("Have 401 but no creds loaded " + curi);
             }
             return loaded;
         case S_DEFERRED:
@@ -1263,31 +1167,7 @@ public abstract class AbstractFrontier
         new ReentrantReadWriteLock(true);
     /** remembers a disposition-in-progress, so that extra endDisposition()
      *  calls are harmless */
-    protected ThreadLocal<CrawlURI> dispositionPending = new ThreadLocal<CrawlURI>();
-
-    protected Lock readyLock;
-    protected Condition queueReady;
-    
-    protected Lock snoozeLock;
-    protected Condition snoozeUpdated;
-    private long nextWakeTime = Long.MAX_VALUE;
-    
-    /**
-     * call this method to notify management thread of a queue being
-     * snoozed. management thread will wake up and recalculate next wake up
-     * time if necessary.
-     * @param wakeTime
-     */
-    protected void updateSnoozeTime(long wakeTime) {
-        if (wakeTime < nextWakeTime) {
-            snoozeLock.lock();
-            try {
-                snoozeUpdated.signal();
-            } finally {
-                snoozeLock.unlock();
-            }
-        }
-    }
+    protected ThreadLocal<CrawlURI> dispositionPending = new ThreadLocal<CrawlURI>(); 
     
     /* (non-Javadoc)
      * @see org.archive.crawler.framework.Frontier#beginDisposition(org.archive.modules.CrawlURI)
