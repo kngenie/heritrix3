@@ -89,7 +89,7 @@ public class HttpPersistProcessor extends Processor implements Lifecycle, FetchS
         @Override
         public void run() {
             CrawlURI[] bucket = null;
-            while (running || !finishedQueue.isEmpty()) {
+            while (finishedFlushThread == Thread.currentThread() || !finishedQueue.isEmpty()) {
                 if (bucket == null || bucket.length != (finishedBatchSize + finishedBatchSizeMargin))
                     bucket = new CrawlURI[finishedBatchSize + finishedBatchSizeMargin];
                 Arrays.fill(bucket, null);
@@ -128,7 +128,7 @@ public class HttpPersistProcessor extends Processor implements Lifecycle, FetchS
                         } catch (IOException ex) {
                             logger.warning("submitting finished failed: " + ex);
                         }
-                        if (!running) {
+                        if (finishedFlushThread != Thread.currentThread()) {
                             logger.severe("finished did not complete, lost URLs:");
                             int i = 0;
                             for (CrawlURI curi : bucket) {

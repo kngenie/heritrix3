@@ -134,7 +134,7 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
         @Override
         public void run() {
             CrawlURI[] bucket = null;
-            while (running || !discoveredQueue.isEmpty()) {
+            while (discoveredFlushThread == Thread.currentThread() || !discoveredQueue.isEmpty()) {
                 int bucketSize = discoveredBatchSize + discoveredBatchSizeMargin;
                 if (bucket == null || bucket.length != bucketSize)
                     bucket = new CrawlURI[bucketSize];
@@ -175,7 +175,7 @@ public class OnlineCrawlMapper implements UriUniqFilter, Lifecycle, CrawlUriRece
                         } catch (IOException ex) {
                             logger.warning("submitting discovered failed: " + ex);
                         }
-                        if (!running) {
+                        if (Thread.currentThread() != discoveredFlushThread) {
                             logger.severe("discovered did not complete, lost URLs:");
                             int i = 0;
                             for (CrawlURI curi : bucket) {
