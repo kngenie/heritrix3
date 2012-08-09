@@ -275,16 +275,16 @@ public class HttpHeadquarterAdapter {
         return sb.toString();
     }
     
-    private static String getHeaderValue(org.apache.commons.httpclient.HttpMethod method, String name) {
-        org.apache.commons.httpclient.Header header = method.getResponseHeader(name);
-        return header != null ? header.getValue() : null;
-    }
+//    private static String getHeaderValue(org.apache.commons.httpclient.HttpMethod method, String name) {
+//        org.apache.commons.httpclient.Header header = method.getResponseHeader(name);
+//        return header != null ? header.getValue() : null;
+//    }
     
-    public void mfinished(CrawlURI[] uris) throws IOException {
+    public void mfinished(FinishedData[] uris) throws IOException {
         HttpPost post = new HttpPost(getMultiFinishedURL());
         JSONArray juris = new JSONArray();
         try {
-            for (CrawlURI uri : uris) {
+            for (FinishedData uri : uris) {
                 // allow partially filled array
                 if (uri == null) continue;
                 JSONObject juri = new JSONObject();
@@ -294,7 +294,7 @@ public class HttpHeadquarterAdapter {
             }
         } catch (JSONException ex) {
             logger.warning("unexpected error building JSON for CrawlURIs:");
-            for (CrawlURI curi : uris) {
+            for (FinishedData curi : uris) {
                 if (curi == null) break;
                 logger.warning("  " + curi);
             }
@@ -349,7 +349,7 @@ public class HttpHeadquarterAdapter {
      * @param dateStr time in HTTP Date format.
      * @return seconds since epoch
      */
-    protected long parseHttpDate(String dateStr) {
+    public static long parseHttpDate(String dateStr) {
         synchronized (HTTP_DATE_FORMAT) {
             try {
                 Date d = HTTP_DATE_FORMAT.parse(dateStr);
@@ -390,7 +390,7 @@ public class HttpHeadquarterAdapter {
     // CrawlURI data key used for storing Headquarter's unique ID for URIs
     public static final String DATAKEY_ID = "HQID";
     
-    private JSONObject getFinishedData(CrawlURI uri) throws JSONException {
+    private JSONObject getFinishedData(FinishedData uri) throws JSONException {
         JSONObject data = new JSONObject();
         // not using CrawlURI#getPersistentDataMap() for efficiency
         // it does not include content-digest and last-modified anyway,
@@ -402,38 +402,12 @@ public class HttpHeadquarterAdapter {
             data.put(PROPERTY_CONTENT_DIGEST, digest);
         }
         data.put(PROPERTY_STATUS, uri.getFetchStatus());
-        org.apache.commons.httpclient.HttpMethod method = uri.getHttpMethod();
-//        data.put(PROPERTY_STATUS, method.getStatusCode());
-        if (method != null) {
-            String etag = getHeaderValue(method, RecrawlAttributeConstants.A_ETAG_HEADER);
-            if (etag != null) {
-                // Etag is usually quoted
-                if (etag.length() >= 2 && etag.startsWith("\"") && etag.endsWith("\""))
-                    etag = etag.substring(1, etag.length() - 1);
-                data.put(PROPERTY_ETAG, etag);
-            }
-            String lastmod = getHeaderValue(method, RecrawlAttributeConstants.A_LAST_MODIFIED_HEADER);
-            if (lastmod != null) {
-                long lastmod_sec = parseHttpDate(lastmod);
-                if (lastmod_sec == 0) {
-                    try {
-                        lastmod_sec = uri.getFetchCompletedTime();
-                    } catch (NullPointerException ex) {
-                        logger.warning("CrawlURI.getFetchCompletedTime():" + ex + " for " + uri.shortReportLine());
-                    }
-                }
-                if (lastmod_sec != 0)
-                    data.put(PROPERTY_LAST_MODIFIED, lastmod_sec);
-            } else {
-                try {
-                    long completed = uri.getFetchCompletedTime();
-                    if (completed != 0)
-                        data.put(PROPERTY_LAST_MODIFIED, completed);
-                } catch (NullPointerException ex) {
-                    logger.warning("CrawlURI.getFetchCompletedTime():" + ex + " for " + uri.shortReportLine());
-                }
-            }
-        }
+        String etag = uri.getETag();
+        if (etag != null)
+            data.put(PROPERTY_ETAG, etag);
+        long lastModified = uri.getLastModified();
+        if (lastModified != 0)
+            data.put(PROPERTY_LAST_MODIFIED, lastModified);
         return data;
     }
     /**
@@ -443,16 +417,15 @@ public class HttpHeadquarterAdapter {
      * copy these values in persistentDataMap before calling this method.
      * @param uri CrawlURI to send
      */
-    public void finished(CrawlURI uri) {
+    public void finished(FinishedData uri) {
         HttpPost post = new HttpPost(getFinishedURL());
         try {
             JSONObject data = getFinishedData(uri);
             List<NameValuePair> params = new ArrayList<NameValuePair>();
             params.add(new BasicNameValuePair(PROPERTY_URI, uri.getURI()));
             params.add(new BasicNameValuePair(PROPERTY_DATA, data.toString()));
-            Map<String, Object> uridata = uri.getData();
-            if (uridata != null && uridata.containsKey(DATAKEY_ID)) {
-                params.add(new BasicNameValuePair(PROPERTY_ID, (String)uridata.get(DATAKEY_ID)));
+            if (uri.uriid != null) {
+                params.add(new BasicNameValuePair(PROPERTY_ID, uri.uriid));
             }
             UrlEncodedFormEntity entity = new UrlEncodedFormEntity(params);
             post.setEntity(entity);

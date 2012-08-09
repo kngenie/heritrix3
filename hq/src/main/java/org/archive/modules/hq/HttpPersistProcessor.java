@@ -46,7 +46,7 @@ public class HttpPersistProcessor extends Processor implements Lifecycle, FetchS
 
     HttpHeadquarterAdapter client;
     
-    protected final BlockingQueue<CrawlURI> finishedQueue;
+    protected final BlockingQueue<FinishedData> finishedQueue;
     protected int finishedBatchSize = 40;
     protected int finishedBatchSizeMargin = 30;
     protected Thread finishedFlushThread;
@@ -88,16 +88,16 @@ public class HttpPersistProcessor extends Processor implements Lifecycle, FetchS
     public class Submitter implements Runnable {
         @Override
         public void run() {
-            CrawlURI[] bucket = null;
+            FinishedData[] bucket = null;
             while (finishedFlushThread == Thread.currentThread() || !finishedQueue.isEmpty()) {
                 if (bucket == null || bucket.length != (finishedBatchSize + finishedBatchSizeMargin))
-                    bucket = new CrawlURI[finishedBatchSize + finishedBatchSizeMargin];
+                    bucket = new FinishedData[finishedBatchSize + finishedBatchSizeMargin];
                 Arrays.fill(bucket, null);
                 int count = 0;
                 for (int i = 0; i < bucket.length; i++) {
                     try {
                         long wait = i < finishedBatchSize ? 2 : 0;
-                        CrawlURI curi = finishedQueue.poll(wait, TimeUnit.SECONDS);
+                        FinishedData curi = finishedQueue.poll(wait, TimeUnit.SECONDS);
                         if (curi == null) break;
                         bucket[i] = curi;
                         count++;
@@ -131,7 +131,7 @@ public class HttpPersistProcessor extends Processor implements Lifecycle, FetchS
                         if (finishedFlushThread != Thread.currentThread()) {
                             logger.severe("finished did not complete, lost URLs:");
                             int i = 0;
-                            for (CrawlURI curi : bucket) {
+                            for (FinishedData curi : bucket) {
                                 if (curi == null) continue;
                                 i++;
                                 logger.severe("  " + i + ":" + curi.getURI());
@@ -150,7 +150,7 @@ public class HttpPersistProcessor extends Processor implements Lifecycle, FetchS
     }
     
     public HttpPersistProcessor() {
-        this.finishedQueue = new LinkedBlockingQueue<CrawlURI>(500);
+        this.finishedQueue = new LinkedBlockingQueue<FinishedData>(500);
     }
     
     @Autowired(required=true)
@@ -171,13 +171,13 @@ public class HttpPersistProcessor extends Processor implements Lifecycle, FetchS
         if (running) {
             // flush thread is ative. queue and leave.
             try {
-                finishedQueue.put(uri);
+                finishedQueue.put(new FinishedData(uri));
             } catch (InterruptedException ex) {
                 // TODO: do not lose CrawlURI!
             }
         } else {
             // submit CrawlURI one by one during shutdown.
-            client.finished(uri);
+            client.finished(new FinishedData(uri));
         }
     }
 
