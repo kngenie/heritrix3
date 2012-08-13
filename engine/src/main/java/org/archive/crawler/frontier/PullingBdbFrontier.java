@@ -198,7 +198,7 @@ public class PullingBdbFrontier extends BdbFrontier {
         
         CrawlURI crawlable = null;
         do {
-            if (targetState == State.RUN) {
+            if (targetState == State.RUN || targetState == State.EMPTY) {
                 long t1 = System.currentTimeMillis();
                 if (logger.isLoggable(Level.FINE))
                     logger.fine("calling findEligibleURI()");
