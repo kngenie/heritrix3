@@ -198,27 +198,35 @@ public class PullingBdbFrontier extends BdbFrontier {
         
         CrawlURI crawlable = null;
         do {
-            if (targetState == State.RUN || targetState == State.EMPTY) {
-                long t1 = System.currentTimeMillis();
-                if (logger.isLoggable(Level.FINE))
-                    logger.fine("calling findEligibleURI()");
-                crawlable = findEligibleURI();
-                if (logger.isLoggable(Level.FINE))
-                    logger.fine(String.format("findEligibleURI() done in %dms",
-                            System.currentTimeMillis() - t1));
-            }
-            // if CrawlURI is unavailable due to readyQueue exhaustion or PAUSED state
-            // sleep until notified of situation change.
-            if (crawlable == null) {
+            // ToeThead does not expect next() to return null. That is,
+            // paused ToeThreads remains in next() until they get killed
+            // by application exit. Busy ToeThreads will execute should-retire
+            // check at the end of main loop and exit. it is kind of inconsistent.
+            // (this is the same behavior as original BdbFrontier.)
+            // paused threads should be released by either interrupt or signaling 
+            // readyLock when targetState moved to FINISH. For interrupt approach,
+            // ToeTread.run() must handle InterruptException from next() gracefully.
+            if (targetState != State.RUN && targetState != State.EMPTY) {
                 readyLock.lock();
                 try {
                     queueReady.await();
-                    if (logger.isLoggable(Level.FINE))
-                        logger.fine("resumed");
                 } finally {
                     readyLock.unlock();
                 }
+                if (logger.isLoggable(Level.FINE))
+                    logger.fine("resumed");
+                // queueReady can be signaled by events other than targetState
+                // change. check targetState again. this is also necessary for
+                // FINISH check described above.
+                continue;
             }
+            long t1 = System.currentTimeMillis();
+            if (logger.isLoggable(Level.FINE))
+                logger.fine("calling findEligibleURI()");
+            crawlable = findEligibleURI();
+            if (logger.isLoggable(Level.FINE))
+                logger.fine(String.format("findEligibleURI() done in %dms",
+                        System.currentTimeMillis() - t1));
         } while (crawlable == null);
         
         if (logger.isLoggable(Level.FINE))
@@ -237,22 +245,17 @@ public class PullingBdbFrontier extends BdbFrontier {
      */
     @Override
     protected void readyQueue(WorkQueue wq) {
+        readyLock.lock();
         try {
-            readyClassQueues.put(wq.getClassKey());
-            if (logger.isLoggable(Level.FINE)) {
-                logger.log(Level.FINE, "queue readied: " + wq.getClassKey());
-            }
+            // readLock must be acquired around readyClassQueue
+            // operation. otherwise ToeThread can miss notification. 
+            super.readyQueue(wq);
+            // super.readyQueue() throws RuntimeException when interrupted.
+            // in that case, queueReady will not be signaled, which is appropriate.
+            queueReady.signal();
             queueReadiedCount.incrementAndGet();
-            readyLock.lock();
-            try {
-                queueReady.signal();
-            } finally {
-                readyLock.unlock();
-            }
-        } catch (InterruptedException e) {
-            logger.log(Level.SEVERE, "unable to add " + wq.getClassKey() + " to readyClassQueue", e);
-            // propagate interrupt up 
-            throw new RuntimeException(e);
+        } finally {
+            readyLock.unlock();
         }
     }
 
@@ -330,17 +333,38 @@ public class PullingBdbFrontier extends BdbFrontier {
             WorkQueue readyQ = null;
             do {
                 String key = null;
-                do {
-                    if (targetState != State.RUN && targetState != State.EMPTY) return null;
-                    // if size of readyClassQueue dropped below configured
-                    // level, trigger "pulling" so that more queues will
-                    // become ready before readyClassQueue gets exhausted.
-                    int readyLevel = readyClassQueues.size();
-                    if (readyLevel < pullTriggerLevel || (key = readyClassQueues.poll()) == null) {
-                        if (pullURIs()) continue;
+                // if size of readyClassQueue dropped below configured
+                // level, trigger "pulling" so that more queues will
+                // become ready before readyClassQueue gets exhausted.
+                // as readyLevel doesn't need to be precise, we don't acquire
+                // readyLock here.
+                int readyLevel = readyClassQueues.size();
+                if (readyLevel < pullTriggerLevel) {
+                    // if other ToeThread is pulling, this method returns immediately and
+                    // new WorkQueue may not be available yet. Otherwise, this method does
+                    // not return until pull request completes. Yet, new WorkQueue may not
+                    // be available because 1) pull request could not get new URIs, or
+                    // 2) other ToeThreads woke up and took all ready WorkQueues.
+                    pullURIs();
+                }
+                // if we don't acquire readyLock here, readyQueue can add new item to
+                // readyClassQueue after poll() but before queueReady.await(). it would make
+                // ToeThread sleep indefinitely when ready-queues are available.
+                readyLock.lock();
+                try {
+                    key = readyClassQueues.poll();
+                    if (key == null) {
+                        queueReady.await();
+                        // may be waken up by targetState change.
+                        // go back to next() to check targetState.
                         return null;
                     }
-                } while (key == null);
+                } catch (InterruptedException ex) {
+                    return null;
+                } finally {
+                    readyLock.unlock();
+                }
+                // key shall be non-null at this point.
                 if (logger.isLoggable(Level.FINE))
                     logger.fine("found ready queue: " + key);
                 readyQ = getQueueFor(key);
