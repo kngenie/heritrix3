@@ -43,7 +43,7 @@ import org.archive.net.UURIFactory;
  * @version $Revision$, $Date$
  */
 public class HtmlFormCredential extends Credential {
-    private static final long serialVersionUID = -3L;
+    private static final long serialVersionUID = -4L;
 
     private static final Logger logger =
         Logger.getLogger(HtmlFormCredential.class.getName());
@@ -133,7 +133,9 @@ public class HtmlFormCredential extends Credential {
         return false;
     }
 
-    public boolean populate(CrawlURI curi, HttpClient http, HttpMethod method) {
+    @Override
+    public boolean populate(CrawlURI curi, HttpClient http, HttpMethod method,
+            Map<String, String> httpAuthChallenges) {
         // http is not used
         boolean result = false;
         Map<String,String> formItems = getFormItems();

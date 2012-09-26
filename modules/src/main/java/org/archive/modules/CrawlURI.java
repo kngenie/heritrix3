@@ -26,6 +26,7 @@ import static org.archive.modules.CoreAttributeConstants.A_FETCH_COMPLETED_TIME;
 import static org.archive.modules.CoreAttributeConstants.A_FORCE_RETIRE;
 import static org.archive.modules.CoreAttributeConstants.A_HERITABLE_KEYS;
 import static org.archive.modules.CoreAttributeConstants.A_HTML_BASE;
+import static org.archive.modules.CoreAttributeConstants.A_HTTP_AUTH_CHALLENGES;
 import static org.archive.modules.CoreAttributeConstants.A_NONFATAL_ERRORS;
 import static org.archive.modules.CoreAttributeConstants.A_PREREQUISITE_URI;
 import static org.archive.modules.CoreAttributeConstants.A_SOURCE_TAG;
@@ -54,6 +55,7 @@ import static org.archive.modules.fetcher.FetchStatusCodes.S_TOO_MANY_LINK_HOPS;
 import static org.archive.modules.fetcher.FetchStatusCodes.S_TOO_MANY_RETRIES;
 import static org.archive.modules.fetcher.FetchStatusCodes.S_UNATTEMPTED;
 import static org.archive.modules.fetcher.FetchStatusCodes.S_UNFETCHABLE_URI;
+import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_CONTENT_DIGEST_HISTORY;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -65,6 +67,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -249,7 +252,7 @@ implements Reporter, Serializable, OverlayContext {
      */
     private static final Collection<String> persistentKeys
      = new CopyOnWriteArrayList<String>(
-            new String [] {A_CREDENTIALS_KEY});
+            new String [] {A_CREDENTIALS_KEY, A_HTTP_AUTH_CHALLENGES});
 
     /** maximum length for pathFromSeed/hopsPath; longer truncated with leading counter **/ 
     private static final int MAX_HOPS_DISPLAYED = 50;
@@ -650,12 +653,12 @@ implements Reporter, Serializable, OverlayContext {
      */
     public Collection<String> getAnnotations() {
         @SuppressWarnings("unchecked")
-        List<String> list = (List<String>)getData().get(A_ANNOTATIONS);
-        if (list == null) {
-            list = new ArrayList<String>();
-            getData().put(A_ANNOTATIONS, list);
+        Collection<String> annotations = (Collection<String>)getData().get(A_ANNOTATIONS);
+        if (annotations == null) {
+            annotations = new LinkedHashSet<String>();
+            getData().put(A_ANNOTATIONS, annotations);
         }
-        return list;
+        return annotations;
     }
 
     /**
@@ -1872,6 +1875,31 @@ implements Reporter, Serializable, OverlayContext {
     public boolean containsContentTypeCharsetDeclaration() {
         // TODO can this regex be improved? should the test consider if its legal? 
         return getContentType().matches("(?i).*charset=.*");
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String,String> getHttpAuthChallenges() {
+        return (Map<String, String>) getData().get(A_HTTP_AUTH_CHALLENGES);
+    }
+
+    public void setHttpAuthChallenges(Map<String, String> httpAuthChallenges) {
+        getData().put(A_HTTP_AUTH_CHALLENGES, httpAuthChallenges);
+    }
+
+    public HashMap<String, Object> getContentDigestHistory() {
+        @SuppressWarnings("unchecked")
+        HashMap<String, Object> contentDigestHistory = (HashMap<String, Object>) getData().get(A_CONTENT_DIGEST_HISTORY);
+        
+        if (contentDigestHistory == null) {
+            contentDigestHistory = new HashMap<String, Object>();
+            getData().put(A_CONTENT_DIGEST_HISTORY, contentDigestHistory);
+        }
+        
+        return contentDigestHistory;
+    }
+
+    public boolean hasContentDigestHistory() {
+        return getData().get(A_CONTENT_DIGEST_HISTORY) != null;
     }
 
 }
