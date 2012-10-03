@@ -33,6 +33,7 @@ import org.archive.modules.Processor;
 import org.archive.modules.SchedulingConstants;
 import org.archive.modules.extractor.Hop;
 import org.archive.modules.extractor.Link;
+import org.archive.modules.extractor.LinkContext;
 import org.archive.modules.seeds.SeedModule;
 import org.archive.spring.KeyedProperties;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -204,7 +205,14 @@ public class CandidatesProcessor extends Processor {
                 }
                 if (candidate.isLocation() && curi.forceFetch()) {
                     // redirect destination should inherit forceFetch flag from curi
-                    candidate.setForceFetch(true);
+                    // except for candidate taken from Content-Location header, which
+                    // is, strictly speaking, not a redirect. some sites returns
+                    // Content-Location header pointing to itself, which will cause
+                    // infinite fetches.
+                    LinkContext lc = candidate.getViaContext();
+                    if (lc == null || !"content-location:".equalsIgnoreCase(lc.toString())) {
+                        candidate.setForceFetch(true);
+                    }
                 }
                 getCandidateChain().process(candidate, null); 
                 if(candidate.getFetchStatus()>=0) {
