@@ -37,13 +37,6 @@
 			<version>${project.version}</version>
 			<scope>compile</scope>
 		</dependency>
-        <dependency>
-            <groupId>org.archive</groupId>
-            <artifactId>heritrix-hq</artifactId>
-            <version>${project.version}</version>
-            <type>jar</type>
-            <scope>compile</scope>
-        </dependency>
 	</dependencies>
 
 	<build>

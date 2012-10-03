@@ -18,7 +18,6 @@
         <include>dist/**</include>
         <include>engine/**</include>
         <include>modules/**</include>
-        <include>hq/**</include>
       </includes>
       <excludes>
         <exclude>**/target/**</exclude>
