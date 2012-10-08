@@ -30,6 +30,9 @@ import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.security.MessageDigest;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -120,6 +123,23 @@ public class FetchDNS extends Processor {
     public void setDigestAlgorithm(String digestAlgorithm) {
         this.digestAlgorithm = digestAlgorithm;
     }
+    
+    // for periodic DNS cache purge.
+    AtomicBoolean cacheMutex = new AtomicBoolean(false);
+    private long nextCacheClearTime = 0;
+    private long cacheClearInterval = 20000;
+    public long getCacheClearInterval() {
+        return cacheClearInterval;
+    }
+    /**
+     * minimum length in milliseconds DNS cache should be retained. after passing this many
+     * seconds, next {@link #innerProcess(CrawlURI)} call will purge DNS cache.
+     * initial value is 20 seconds.
+     * @param cacheClearInterval milliseconds
+     */
+    public void setCacheClearInterval(long cacheClearInterval) {
+        this.cacheClearInterval = cacheClearInterval;
+    }
 
     private static final long DEFAULT_TTL_FOR_NON_DNS_RESOLVES
         = 6 * 60 * 60; // 6 hrs
@@ -200,6 +220,22 @@ public class FetchDNS extends Processor {
             }
         }
         curi.setFetchCompletedTime(System.currentTimeMillis());
+
+        // moved from StatisticsTracker#progressStatisticsEvent(). While it doesn't make
+        // good sense to clear the cache based on time (size makes more sense), I'm taking the
+        // same approach as the original code, which cleared the cache at fixed interval (20
+        // seconds by default) by piggy-backing on periodic execution of progress report.
+        // BTW following sourceforge tracker URL no longer works.
+        // temporary workaround for 
+        // [ 996161 ] Fix DNSJava issues (memory) -- replace with JNDI-DNS?
+        // http://sourceforge.net/support/tracker.php?aid=996161
+        if (cacheMutex.compareAndSet(false, true)) {
+            if (nextCacheClearTime < System.currentTimeMillis()) {
+                if (nextCacheClearTime > 0)
+                    Lookup.getDefaultCache(DClass.IN).clearCache();
+                nextCacheClearTime = System.currentTimeMillis() + getCacheClearInterval();
+            }
+        }
     }
     
     protected void storeDNSRecord(final CrawlURI curi, final String dnsName,
