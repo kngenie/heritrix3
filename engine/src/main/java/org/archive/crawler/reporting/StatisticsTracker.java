@@ -75,8 +75,6 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.Lifecycle;
-import org.xbill.DNS.DClass;
-import org.xbill.DNS.Lookup;
 
 import com.sleepycat.je.DatabaseException;
 
