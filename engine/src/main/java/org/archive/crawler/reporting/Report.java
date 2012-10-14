@@ -31,7 +31,7 @@ public abstract class Report {
     public Report() {
     }
     
-    public abstract void write(PrintWriter writer, StatisticsTracker stats); 
+    public abstract void write(PrintWriter writer, StatisticsTracker stats);
     
     public abstract String getFilename();
 

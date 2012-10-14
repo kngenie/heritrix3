@@ -752,7 +752,12 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
          .append(" avg)");
         return sb.toString();
     }
-
+    
+    private int threadCount() {
+        CrawlController controller = getCrawlController();
+        return controller != null ? controller.getToeCount() : 0;
+    }
+    
     public Map<String,Number> loadReportData() {
         StatisticsTracker stats = getStats();
         if (stats == null) {
@@ -763,7 +768,7 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         Map<String,Number> map = new LinkedHashMap<String,Number>();
         
         map.put("busyThreads", snapshot.busyThreads);
-        map.put("totalThreads", stats.threadCount());
+        map.put("totalThreads", threadCount());
         map.put("congestionRatio", snapshot.congestionRatio);
         map.put("averageQueueDepth", snapshot.averageDepth);
         map.put("deepestQueueDepth", snapshot.deepestUri);
@@ -780,7 +785,7 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         sb
          .append(snapshot.busyThreads)
          .append(" active of ")
-         .append(stats.threadCount())
+         .append(threadCount())
          .append(" threads; ")
          .append(ArchiveUtils.doubleToString(snapshot.congestionRatio,2))
          .append(" congestion ratio; ")

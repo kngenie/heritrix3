@@ -22,6 +22,7 @@ package org.archive.crawler.reporting;
 import java.io.IOException;
 import java.io.PrintWriter;
 
+import org.archive.crawler.framework.Frontier;
 import org.archive.crawler.frontier.WorkQueueFrontier;
 
 /**
@@ -31,18 +32,27 @@ import org.archive.crawler.frontier.WorkQueueFrontier;
  * @contributor gojomo
  */
 public class FrontierNonemptyReport extends Report {
+    private Frontier frontier;
+    
+    public Frontier getFrontier() {
+        return frontier;
+    }
+
+    public void setFrontier(Frontier frontier) {
+        this.frontier = frontier;
+    }
 
     @Override
     public void write(PrintWriter writer, StatisticsTracker stats) {
-        if(!stats.controller.getFrontier().isRunning()) {
+        if(!frontier.isRunning()) {
             writer.println("frontier unstarted");
-        } else if (stats.controller.getFrontier().isEmpty()) {
+        } else if (frontier.isEmpty()) {
             writer.println("frontier empty");
-        } else if (stats.controller.getFrontier() instanceof WorkQueueFrontier) {
-            ((WorkQueueFrontier)stats.controller.getFrontier()).allNonemptyReportTo(writer);
+        } else if (frontier instanceof WorkQueueFrontier) {
+            ((WorkQueueFrontier)frontier).allNonemptyReportTo(writer);
         } else {
             try {
-                stats.controller.getFrontier().reportTo(writer);
+                frontier.reportTo(writer);
             } catch (IOException e) {
                 e.printStackTrace();
             }

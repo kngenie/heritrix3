@@ -70,6 +70,7 @@ import org.json.JSONObject;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanNameAware;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ApplicationEvent;
@@ -239,6 +240,7 @@ public class StatisticsTracker
     }
     
     protected CrawlController controller;
+    @Deprecated
     public CrawlController getCrawlController() {
         return this.controller;
     }
@@ -310,16 +312,17 @@ public class StatisticsTracker
         // lazy initialization so we don't pointlessly create a bunch of beans
         // right before setReports is called
         if (reports == null) {
+            AutowireCapableBeanFactory bf = appCtx.getAutowireCapableBeanFactory();
             reports = new LinkedList<Report>();
-            reports.add(new CrawlSummaryReport());
-            reports.add(new SeedsReport());
-            reports.add(new HostsReport());
-            reports.add(new SourceTagsReport());
-            reports.add(new MimetypesReport());
-            reports.add(new ResponseCodeReport());
-            reports.add(new ProcessorsReport());
-            reports.add(new FrontierSummaryReport());
-            reports.add(new ToeThreadsReport());
+            reports.add(bf.createBean(CrawlSummaryReport.class));
+            reports.add(bf.createBean(SeedsReport.class));
+            reports.add(bf.createBean(HostsReport.class));
+            reports.add(bf.createBean(SourceTagsReport.class));
+            reports.add(bf.createBean(MimetypesReport.class));
+            reports.add(bf.createBean(ResponseCodeReport.class));
+            reports.add(bf.createBean(ProcessorsReport.class));
+            reports.add(bf.createBean(FrontierSummaryReport.class));
+            reports.add(bf.createBean(ToeThreadsReport.class));
         }
         
         return reports;
@@ -709,6 +712,7 @@ public class StatisticsTracker
      *
      * @return The total number of ToeThreads
      */
+    @Deprecated
     public int threadCount() {
         return this.controller != null? controller.getToeCount(): 0;
     }
@@ -818,6 +822,7 @@ public class StatisticsTracker
         return processedSeedsRecords.keySet().iterator();
     }
 
+    // TODO: move to SeedsReport
     public DisposableStoredSortedMap<Integer,SeedRecord> calcSeedRecordsSortedByStatusCode() {
         Iterator<String> i = getSeedsIterator();
         DisposableStoredSortedMap<Integer,SeedRecord> sortedMap = 
@@ -840,19 +845,20 @@ public class StatisticsTracker
         return sortedMap;
     }
     
-    /**
-     * Return a copy of the hosts distribution in reverse-sorted (largest first)
-     * order.
-     * 
-     * @return SortedMap of hosts distribution
-     */
-    public DisposableStoredSortedMap<Long,String> getReverseSortedHostCounts(
-            Map<String,AtomicLong> hostCounts) {
-        synchronized(hostCounts){
-            return getReverseSortedCopy(hostCounts);
-        }
-    }
+//    /**
+//     * Return a copy of the hosts distribution in reverse-sorted (largest first)
+//     * order.
+//     * 
+//     * @return SortedMap of hosts distribution
+//     */
+//    public DisposableStoredSortedMap<Long,String> getReverseSortedHostCounts(
+//            Map<String,AtomicLong> hostCounts) {
+//        synchronized(hostCounts){
+//            return getReverseSortedCopy(hostCounts);
+//        }
+//    }
 
+    // TODO: move to HostsReport
     /**
      * Return a copy of the hosts distribution in reverse-sorted
      * (largest first) order. 

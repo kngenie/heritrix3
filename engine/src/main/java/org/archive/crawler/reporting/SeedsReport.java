@@ -32,7 +32,7 @@ import com.sleepycat.collections.StoredIterator;
  * 
  * @contributor gojomo
  */
-public class SeedsReport extends Report {
+public class SeedsReport extends StatisticsReport {
 
     @Override
     public void write(PrintWriter writer, StatisticsTracker stats) {

@@ -32,7 +32,7 @@ import org.archive.modules.net.CrawlHost;
  * 
  * @contributor gojomo
  */
-public class HostsReport extends Report {
+public class HostsReport extends StatisticsReport {
 
     protected String fixup(String hostName) {
         if ("dns:".equals(hostName)) {

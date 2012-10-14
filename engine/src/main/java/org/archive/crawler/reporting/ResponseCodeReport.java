@@ -28,7 +28,7 @@ import org.archive.bdb.DisposableStoredSortedMap;
  * 
  * @contributor gojomo
  */
-public class ResponseCodeReport extends Report {
+public class ResponseCodeReport extends StatisticsReport {
 
     @Override
     public void write(PrintWriter writer, StatisticsTracker stats) {

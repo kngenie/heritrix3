@@ -20,6 +20,9 @@ package org.archive.crawler.reporting;
 
 import java.io.PrintWriter;
 
+import org.archive.crawler.framework.CrawlController;
+import org.springframework.beans.factory.annotation.Autowired;
+
 /**
  * The "Processors Report", delegated through the CrawlController 
  * to each Processor to dump whatever information it collects for 
@@ -28,12 +31,21 @@ import java.io.PrintWriter;
  * @contributor gojomo
  */
 public class ProcessorsReport extends Report {
+    private CrawlController controller;
+
+    public CrawlController getController() {
+        return controller;
+    }
+    @Autowired(required=true)
+    public void setController(CrawlController controller) {
+        this.controller = controller;
+    }
 
     @Override
     public void write(PrintWriter writer, StatisticsTracker stats) {
-        stats.controller.getCandidateChain().reportTo(writer);
-        stats.controller.getFetchChain().reportTo(writer);
-        stats.controller.getDispositionChain().reportTo(writer);
+        controller.getCandidateChain().reportTo(writer);
+        controller.getFetchChain().reportTo(writer);
+        controller.getDispositionChain().reportTo(writer);
     }
 
     @Override

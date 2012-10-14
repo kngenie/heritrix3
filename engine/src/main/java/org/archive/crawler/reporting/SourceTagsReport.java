@@ -30,8 +30,8 @@ import org.archive.bdb.DisposableStoredSortedMap;
  * 
  * @contributor gojomo
  */
-public class SourceTagsReport extends Report {
-
+public class SourceTagsReport extends StatisticsReport {
+    
     @Override
     public void write(PrintWriter writer, StatisticsTracker stats) {
 
@@ -48,8 +48,14 @@ public class SourceTagsReport extends Report {
             Map<String,AtomicLong> hostCounts = 
                 (Map<String,AtomicLong>)stats.sourceHostDistribution.get(sourceKey);
             // sort hosts by #urls
-            DisposableStoredSortedMap<Long,String> sortedHostCounts = 
-                stats.getReverseSortedHostCounts(hostCounts);
+            DisposableStoredSortedMap<Long,String> sortedHostCounts;
+            // (Kenji) perhaps this synchronized has no real effect. hostCount is a ConcurrentMap
+            // and StatisticsTracker#incrementMapCount() is not synchronizing on it.
+            synchronized (hostCounts) {
+                sortedHostCounts = 
+                    //    stats.getReverseSortedHostCounts(hostCounts);
+                    stats.getReverseSortedCopy(hostCounts);
+            }
             // for each host
             for (Map.Entry<Long, String> entry : sortedHostCounts.entrySet()) {
                 writer.print(sourceKey.toString());

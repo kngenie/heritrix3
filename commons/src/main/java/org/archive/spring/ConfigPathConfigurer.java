@@ -24,6 +24,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -91,7 +92,12 @@ implements
      */
     public void onApplicationEvent(ApplicationEvent event) {
         if(event instanceof ContextRefreshedEvent) {
-            for(String beanName: allBeans.keySet()) {
+            // fixupPaths can trigger creation of new beans if property getter
+            // implements 'default value' logic. make a copy of bean names rather
+            // than iterating on key set to avoid ConcurrentModificationException.
+            Set<String> keys = allBeans.keySet(); 
+            String[] beanNames = keys.toArray(new String[keys.size()]);
+            for (String beanName : beanNames) {
                 fixupPaths(allBeans.get(beanName), beanName);
             }
             allBeans.clear(); // forget 

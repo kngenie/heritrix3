@@ -20,6 +20,9 @@ package org.archive.crawler.reporting;
 
 import java.io.PrintWriter;
 
+import org.archive.crawler.framework.CrawlController;
+import org.springframework.beans.factory.annotation.Autowired;
+
 /**
  * Traditional report of all ToeThread call-stacks, as often consulted
  * to diagnose live crawl issues. 
@@ -27,10 +30,20 @@ import java.io.PrintWriter;
  * @contributor gojomo
  */
 public class ToeThreadsReport extends Report {
+    
+    private CrawlController controller;
+
+    public CrawlController getController() {
+        return controller;
+    }
+    @Autowired
+    public void setController(CrawlController controller) {
+        this.controller = controller;
+    }
 
     @Override
     public void write(PrintWriter writer, StatisticsTracker stats) {
-        writer.print(stats.controller.getToeThreadReport());
+        writer.print(controller.getToeThreadReport());
     }
 
     @Override

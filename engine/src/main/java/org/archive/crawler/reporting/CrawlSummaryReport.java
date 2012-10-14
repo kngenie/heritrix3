@@ -21,21 +21,32 @@ package org.archive.crawler.reporting;
 
 import java.io.PrintWriter;
 
+import org.archive.crawler.framework.CrawlController;
 import org.archive.crawler.util.CrawledBytesHistotable;
 import org.archive.util.ArchiveUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * The "Crawl Report", with summaries of overall crawl size.
  * 
  * @contributor gojomo
  */
-public class CrawlSummaryReport extends Report {
+public class CrawlSummaryReport extends StatisticsReport {
+    private CrawlController controller;
+
+    public CrawlController getController() {
+        return controller;
+    }
+    @Autowired
+    public void setController(CrawlController controller) {
+        this.controller = controller;
+    }
 
     @Override
     public void write(PrintWriter writer, StatisticsTracker stats) {
         CrawlStatSnapshot snapshot = stats.getLastSnapshot(); 
-        writer.println("crawl name: " + stats.getCrawlController().getMetadata().getJobName());
-        writer.println("crawl status: " + stats.getCrawlController().getCrawlExitStatus().desc);
+        writer.println("crawl name: " + controller.getMetadata().getJobName());
+        writer.println("crawl status: " + controller.getCrawlExitStatus().desc);
         writer.println("duration: " +
                 ArchiveUtils.formatMillisecondsToConventional(stats.getCrawlElapsedTime()));
         writer.println();

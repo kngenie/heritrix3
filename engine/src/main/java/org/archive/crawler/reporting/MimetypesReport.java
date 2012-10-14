@@ -29,10 +29,10 @@ import org.archive.bdb.DisposableStoredSortedMap;
  * 
  * @contributor gojomo
  */
-public class MimetypesReport extends Report {
+public class MimetypesReport extends StatisticsReport {
 
     @Override
-    public void write(PrintWriter writer, StatisticsTracker stats) {
+    public void write(PrintWriter writer, StatisticsTracker _stats) {
         // header
         writer.print("[#urls] [#bytes] [mime-types]\n");
         DisposableStoredSortedMap<Long,String> fd = stats.getReverseSortedCopy(stats.getFileDistribution());

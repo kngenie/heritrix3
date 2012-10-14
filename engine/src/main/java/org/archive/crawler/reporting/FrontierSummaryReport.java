@@ -22,6 +22,9 @@ package org.archive.crawler.reporting;
 import java.io.IOException;
 import java.io.PrintWriter;
 
+import org.archive.crawler.framework.Frontier;
+import org.springframework.beans.factory.annotation.Autowired;
+
 /**
  * Frontier summary report showing a limited number of queues of each 
  * type -- as typically consulted during a crawl in progress. 
@@ -29,14 +32,23 @@ import java.io.PrintWriter;
  * @contributor gojomo
  */
 public class FrontierSummaryReport extends Report {
+    private Frontier frontier;
+    
+    public Frontier getFrontier() {
+        return frontier;
+    }
+    @Autowired
+    public void setFrontier(Frontier frontier) {
+        this.frontier = frontier;
+    }
 
     @Override
     public void write(PrintWriter writer, StatisticsTracker stats) {
-        if(!stats.controller.getFrontier().isRunning()) {
+        if(!frontier.isRunning()) {
             writer.println("frontier unstarted");
         } else {
             try {
-                stats.controller.getFrontier().reportTo(writer);
+                frontier.reportTo(writer);
             } catch (IOException e) {
                 e.printStackTrace();
             }
