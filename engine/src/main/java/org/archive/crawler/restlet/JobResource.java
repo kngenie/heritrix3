@@ -30,6 +30,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
@@ -259,6 +260,7 @@ public class JobResource extends BaseResource {
         }
         pw.println(")</h1>");
 
+        try {
         Flash.renderFlashesHTML(pw, getRequest());
 
         if (cj.isProfile()) {
@@ -502,7 +504,10 @@ public class JobResource extends BaseResource {
                 + "<input id='asProfile' type='checkbox' name='asProfile'>"
                 + "<label for='asProfile'>as profile</label></form>");
         // pw.println("<hr>");
-
+        } catch (Exception ex) {
+            logger.log(Level.SEVERE, "error generating page content", ex);
+            pw.println("<div>error generating page content</div>");
+        }
         pw.println("</body>");
         pw.println("</html>");
     }
