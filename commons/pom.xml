@@ -126,7 +126,7 @@
 		<dependency>
 			<groupId>commons-codec</groupId>
 			<artifactId>commons-codec</artifactId>
-			<version>1.3</version>
+			<version>1.6</version>
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
@@ -189,12 +189,6 @@
 			<groupId>fastutil</groupId>
 			<artifactId>fastutil</artifactId>
 			<version>5.0.7</version>
-			<scope>compile</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.gnu.inet</groupId>
-			<artifactId>libidn</artifactId>
-			<version>0.6.5</version>
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
@@ -280,6 +274,18 @@
 			<groupId>net.java.dev.jna</groupId>
 			<artifactId>jna</artifactId>
 			<version>3.2.3</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.archive</groupId>
+			<artifactId>archive-commons</artifactId>
+			<version>1.0-SNAPSHOT</version>
+			<exclusions>
+				<exclusion>
+					<groupId>commons-httpclient</groupId>
+					<artifactId>commons-httpclient</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 
 	</dependencies>

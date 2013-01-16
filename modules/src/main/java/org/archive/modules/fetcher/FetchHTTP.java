@@ -316,7 +316,7 @@ public class FetchHTTP extends Processor implements Lifecycle {
         setSslTrustLevel(TrustLevel.OPEN);
     }
     public TrustLevel getSslTrustLevel() {
-        return (TrustLevel) kp.get("trustLevel");
+        return (TrustLevel) kp.get("sslTrustLevel");
     }
     public void setSslTrustLevel(TrustLevel trustLevel) {
         kp.put("sslTrustLevel",trustLevel);
@@ -1375,14 +1375,13 @@ public class FetchHTTP extends Processor implements Lifecycle {
         }
         super.start();
         
+        setSSLFactory();
         configureHttp();
 
         if (cookieStorage != null) {     
             cookieStorage.start(); 
             http.getState().setCookiesMap(cookieStorage.getCookiesMap());
         }
-
-        setSSLFactory();
     }
     
     public boolean isRunning() {

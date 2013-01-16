@@ -92,9 +92,9 @@ import org.archive.net.UURI;
 import org.archive.net.UURIFactory;
 import org.archive.spring.OverlayContext;
 import org.archive.spring.OverlayMapsSource;
-import org.archive.util.ArchiveUtils;
 import org.archive.util.Base32;
 import org.archive.util.Recorder;
+import org.archive.util.ReportUtils;
 import org.archive.util.Reporter;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -1083,9 +1083,9 @@ implements Reporter, Serializable, OverlayContext {
      * The LinksScoper processor converts Link instances in this collection
      * to CrawlURI instances. 
      */
-    protected transient Collection<Link> outLinks = new HashSet<Link>();
+    protected transient Collection<Link> outLinks = new LinkedHashSet<Link>();
     
-    protected transient Collection<CrawlURI> outCandidates = new HashSet<CrawlURI>();
+    protected transient Collection<CrawlURI> outCandidates = new LinkedHashSet<CrawlURI>();
     
     /**
      * Returns discovered links.  The returned collection might be empty if
@@ -1418,7 +1418,7 @@ implements Reporter, Serializable, OverlayContext {
     //
 
     public String shortReportLine() {
-        return ArchiveUtils.shortReportLine(this);
+        return ReportUtils.shortReportLine(this);
     }
     
     @Override
