@@ -460,6 +460,11 @@ implements Reporter, ProgressStatisticsReporter,
         pw.flush();
     }
 
+    public ThreadInfo getThreadInfo() {
+    	ThreadMXBean tmxb = ManagementFactory.getThreadMXBean();
+    	return tmxb.getThreadInfo(getId());
+    }
+    
     /**
      * @param t Thread
      * @param pw PrintWriter
@@ -493,11 +498,15 @@ implements Reporter, ProgressStatisticsReporter,
     public Map<String, Object> shortReportMap() {
         Map<String,Object> data = new LinkedHashMap<String, Object>();
         data.put("serialNumber", serialNumber);
+        data.put("name", getName());
         CrawlURI c = currentCuri;
         if (c != null) {
             data.put("currentURI", c.toString());
+            data.put("pathFromSeed", c.getPathFromSeed());
+            data.put("via", c.flattenVia());
             data.put("currentProcessor", currentProcessorName);
             data.put("fetchAttempts", c.getFetchAttempts());
+            data.put("uriClassName", getClass().getName());
         } else {
             data.put("currentURI", null);
         }
@@ -514,6 +523,12 @@ implements Reporter, ProgressStatisticsReporter,
         data.put("currentStatusElapsedMilliseconds", time);
         data.put("currentStatusElapsedPretty", ArchiveUtils.formatMillisecondsToConventional(time));
         data.put("step", step);
+        data.put("stepElapsedMilliseconds", (now - atStepSince));
+        
+    	ThreadMXBean tmxb = ManagementFactory.getThreadMXBean();
+    	data.put("threadInfo", tmxb.getThreadInfo(getId()));
+    	data.put("stackTrace", getStackTrace());
+
         return data;
     }
 

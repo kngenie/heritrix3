@@ -20,9 +20,11 @@
 package org.archive.crawler.framework;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -110,6 +112,26 @@ public class ToePool extends ThreadGroup implements Reporter {
         this.enumerate(toes);
         return toes;
     }
+    
+    public Iterator<Map<String, Object>> getToeThreadsData() {
+    	final Thread[] toes = getToes();
+    	
+    	return new Iterator<Map<String, Object>>() {
+    		int idx = 0;
+    		@Override
+    		public boolean hasNext() {
+    			for (; idx < toes.length && !(toes[idx] instanceof ToeThread); idx++)
+    				;
+    			return idx < toes.length;
+    		}
+    		@Override
+    		public Map<String,Object> next() {
+    			return ((ToeThread)toes[idx++]).shortReportMap();
+    		};
+    		@Override
+    		public void remove() {}
+    	};
+    }
 
     /**
      * Change the number of ToeThreads.
@@ -194,25 +216,26 @@ public class ToePool extends ThreadGroup implements Reporter {
     
     @Override
     public void reportTo(PrintWriter writer) {
-        writer.print("Toe threads report - "
-                + ArchiveUtils.get12DigitDate() + "\n");
-        writer.print(" Job being crawled: "
-                + this.controller.getMetadata().getJobName() + "\n");
-        writer.print(" Number of toe threads in pool: " + getToeCount() + " ("
-                + getActiveToeCount() + " active)\n\n");
-        
-        Thread[] toes = this.getToes();
-        synchronized (toes) {
-            for (int i = 0; i < toes.length; i++) {
-                if (!(toes[i] instanceof ToeThread)) {
-                    continue;
-                }
-                ToeThread tt = (ToeThread) toes[i];
-                if (tt != null) {
-                    tt.reportTo(writer);
-                }
-            }
-        }
+    	// re-implemented as FreeMarker template
+//        writer.print("Toe threads report - "
+//                + ArchiveUtils.get12DigitDate() + "\n");
+//        writer.print(" Job being crawled: "
+//                + this.controller.getMetadata().getJobName() + "\n");
+//        writer.print(" Number of toe threads in pool: " + getToeCount() + " ("
+//                + getActiveToeCount() + " active)\n\n");
+//        
+//        Thread[] toes = this.getToes();
+//        synchronized (toes) {
+//            for (int i = 0; i < toes.length; i++) {
+//                if (!(toes[i] instanceof ToeThread)) {
+//                    continue;
+//                }
+//                ToeThread tt = (ToeThread) toes[i];
+//                if (tt != null) {
+//                    tt.reportTo(writer);
+//                }
+//            }
+//        }
     }      
     
     public void compactReportTo(PrintWriter writer) {
@@ -262,6 +285,7 @@ public class ToePool extends ThreadGroup implements Reporter {
         Map<String,Object> data = new LinkedHashMap<String, Object>();
 
         data.put("toeCount", getToeCount());
+        data.put("activeToeCount", getActiveToeCount());
         
         LinkedList<String> unwound = new LinkedList<String>(); 
         for (Entry<?, Long> step: steps.getSortedByCounts()) {
@@ -274,6 +298,7 @@ public class ToePool extends ThreadGroup implements Reporter {
             unwound.add(proc.getValue() + " " + proc.getKey());
         }
         data.put("processors", unwound);
+        data.put("toeThreads", getToeThreadsData());
         
         return data;
     }

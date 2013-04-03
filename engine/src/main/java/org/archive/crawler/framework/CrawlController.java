@@ -612,14 +612,14 @@ implements Serializable,
         return this.sExit;
     }
 
-    public String getToeThreadReport() {
-        if(toePool==null) {
-            return "no ToeThreads";
-        }
-        StringWriter sw = new StringWriter();
-        toePool.reportTo(new PrintWriter(sw));
-        return sw.toString();
-    }
+//    public String getToeThreadReport() {
+//        if(toePool==null) {
+//            return "no ToeThreads";
+//        }
+//        StringWriter sw = new StringWriter();
+//        toePool.reportTo(new PrintWriter(sw));
+//        return sw.toString();
+//    }
 
     public String getToeThreadReportShort() {
         return (toePool == null) ? "" : ReportUtils.shortReportLine(toePool);
