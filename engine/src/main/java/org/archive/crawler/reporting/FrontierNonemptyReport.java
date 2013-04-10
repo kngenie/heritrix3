@@ -30,24 +30,27 @@ import org.archive.crawler.frontier.WorkQueueFrontier;
  * 
  * @contributor gojomo
  */
-public class FrontierNonemptyReport extends Report {
+public class FrontierNonemptyReport extends FreeMarkerReport {
+	public FrontierNonemptyReport() {
+		super("FrontierNonempty.ftl");
+	}
 
-    @Override
-    public void write(PrintWriter writer, StatisticsTracker stats) {
-        if(!stats.controller.getFrontier().isRunning()) {
-            writer.println("frontier unstarted");
-        } else if (stats.controller.getFrontier().isEmpty()) {
-            writer.println("frontier empty");
-        } else if (stats.controller.getFrontier() instanceof WorkQueueFrontier) {
-            ((WorkQueueFrontier)stats.controller.getFrontier()).allNonemptyReportTo(writer);
-        } else {
-            try {
-                stats.controller.getFrontier().reportTo(writer);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
+//    @Override
+//    public void write(PrintWriter writer, StatisticsTracker stats) {
+//        if(!stats.controller.getFrontier().isRunning()) {
+//            writer.println("frontier unstarted");
+//        } else if (stats.controller.getFrontier().isEmpty()) {
+//            writer.println("frontier empty");
+//        } else if (stats.controller.getFrontier() instanceof WorkQueueFrontier) {
+//            ((WorkQueueFrontier)stats.controller.getFrontier()).allNonemptyReportTo(writer);
+//        } else {
+//            try {
+//                stats.controller.getFrontier().reportTo(writer);
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//        }
+//    }
 
     @Override
     public String getFilename() {

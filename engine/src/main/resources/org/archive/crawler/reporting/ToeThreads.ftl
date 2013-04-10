@@ -21,7 +21,7 @@ Blocked/Waiting On: ${info.lockName} which is owned by ${info.lockOwnerName}(${i
 <#else>
 Blocked/Waiting On: NONE
 </#if>
-<#list toe.stackTrace as ste>
+<#list info.stackTrace as ste>
     ${ste}
 </#list>
 ]

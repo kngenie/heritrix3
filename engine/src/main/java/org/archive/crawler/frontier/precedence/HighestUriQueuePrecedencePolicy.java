@@ -105,15 +105,15 @@ public class HighestUriQueuePrecedencePolicy extends BaseQueuePrecedencePolicy {
             return sb.toString(); 
         }
 
-        @Override
-        public void shortReportLineTo(PrintWriter writer) {
-            boolean betwixt = false; 
-            for(Long count : enqueuedCounts.values()) {
-                if(betwixt) writer.print(" ");
-                writer.print(count);
-                betwixt = true;
-            }
-        }
+//        @Override
+//        public void shortReportLineTo(PrintWriter writer) {
+//            boolean betwixt = false; 
+//            for(Long count : enqueuedCounts.values()) {
+//                if(betwixt) writer.print(" ");
+//                writer.print(count);
+//                betwixt = true;
+//            }
+//        }
 
     }
 }

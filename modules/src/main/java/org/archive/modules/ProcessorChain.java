@@ -104,6 +104,13 @@ implements Iterable<Processor>,
         data.put("processors", getProcessors());
         return data;
     }
+    
+    @Override
+    public Map<String, Object> reportMap() {
+    	Map<String, Object> data = shortReportMap();
+    	data.put("className", getClass().getSimpleName());
+    	return data;
+    }
 
     public void shortReportLineTo(PrintWriter pw) {
         pw.print(size());

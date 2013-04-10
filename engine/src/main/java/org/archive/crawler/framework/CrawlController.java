@@ -21,9 +21,7 @@ package org.archive.crawler.framework;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.io.PrintWriter;
 import java.io.Serializable;
-import java.io.StringWriter;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.logging.Level;
@@ -42,7 +40,6 @@ import org.archive.modules.FetchChain;
 import org.archive.modules.net.ServerCache;
 import org.archive.modules.seeds.SeedModule;
 import org.archive.spring.ConfigPath;
-import org.archive.util.ReportUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -614,18 +611,20 @@ implements Serializable,
 //        return sw.toString();
 //    }
 
-    public String getToeThreadReportShort() {
-        return (toePool == null) ? "" : ReportUtils.shortReportLine(toePool);
-    }
+//    @Deprecated
+//    public String getToeThreadReportShort() {
+//        return (toePool == null) ? "" : ReportUtils.shortReportLine(toePool);
+//    }
 
     public Map<String,Object> getToeThreadReportShortData() {
         return toePool == null ? null : toePool.shortReportMap();
         
     }
-
-    public String getFrontierReportShort() {
-        return ReportUtils.shortReportLine(getFrontier());
-    }
+    
+//    @Deprecated
+//    public String getFrontierReportShort() {
+//        return ReportUtils.shortReportLine(getFrontier());
+//    }
 
     /**
      * Receive notification from the frontier, in the frontier's own 

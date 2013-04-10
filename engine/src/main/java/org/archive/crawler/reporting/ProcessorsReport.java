@@ -27,7 +27,10 @@ import java.io.PrintWriter;
  * 
  * @contributor gojomo
  */
-public class ProcessorsReport extends Report {
+public class ProcessorsReport extends FreeMarkerReport {
+	public ProcessorsReport() {
+		super("Processor.ftl");
+	}
 
     @Override
     public void write(PrintWriter writer, StatisticsTracker stats) {

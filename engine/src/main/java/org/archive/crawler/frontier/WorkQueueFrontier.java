@@ -29,8 +29,9 @@ import static org.archive.modules.fetcher.FetchStatusCodes.S_RUNTIME_EXCEPTION;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -40,6 +41,7 @@ import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.DelayQueue;
@@ -50,10 +52,8 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
-import org.apache.commons.collections.iterators.ObjectArrayIterator;
 import org.archive.crawler.datamodel.UriUniqFilter;
 import org.archive.crawler.event.CrawlURIDispositionEvent;
-import org.archive.crawler.framework.ToeThread;
 import org.archive.crawler.frontier.precedence.BaseQueuePrecedencePolicy;
 import org.archive.crawler.frontier.precedence.QueuePrecedencePolicy;
 import org.archive.crawler.util.TopNSet;
@@ -1118,50 +1118,74 @@ implements Closeable,
 
         return map;
     }
-
-    /**
-     * @param w Where to write to.
-     */
+    
     @Override
-    public void shortReportLineTo(PrintWriter w) {
-        if (!isRunning()) return; //???
-        
-        if (this.allQueues == null) {
-            return;
-        }
-        int allCount = allQueues.size();
-        int inProcessCount = inProcessQueues.size();
-        int readyCount = readyClassQueues.size();
-        int snoozedCount = getSnoozedCount();
-        int activeCount = inProcessCount + readyCount + snoozedCount;
-        int inactiveCount = getTotalEligibleInactiveQueues();
-        int ineligibleCount = getTotalIneligibleInactiveQueues();
-        int retiredCount = getRetiredQueues().size();
-        int exhaustedCount = 
-            allCount - activeCount - inactiveCount - retiredCount;
-        State last = lastReachedState;
-        w.print(last);
-        w.print(" - ");
-        w.print(allCount);
-        w.print(" URI queues: ");
-        w.print(activeCount);
-        w.print(" active (");
-        w.print(inProcessCount);
-        w.print(" in-process; ");
-        w.print(readyCount);
-        w.print(" ready; ");
-        w.print(snoozedCount);
-        w.print(" snoozed); ");
-        w.print(inactiveCount);
-        w.print(" inactive; ");
-        w.print(ineligibleCount);
-        w.print(" ineligible; ");
-        w.print(retiredCount);
-        w.print(" retired; ");
-        w.print(exhaustedCount);
-        w.print(" exhausted");        
-        w.flush();
+    public Map<String, Object> reportMap() {
+    	Map<String, Object> data = shortReportMap();
+    	if (data == null) return null;
+    	
+    	/*
+    	data.put("running", isRunning());
+    	data.put("empty", isEmpty());
+    	data.put("inProcessQueuesData", getInProcessQueuesData());
+    	data.put("readyQueuesData", getReadyQueuesData());
+    	data.put("snoozedQueuesData", getSnoozedQueuesData());
+    	data.put("snoozedOverflowData", getSnoozedOverflowData());
+    	data.put("inactiveQueuesData", getInactiveQueuesData());
+    	data.put("retiredQueuesData", getRetiredQueuesData());
+    	*/
+    	data.put("largestQueues", largestQueues.size());
+    	
+    	// managerThread is defined in AbstractFrontier. should this be done there?
+    	ThreadMXBean tmxb = ManagementFactory.getThreadMXBean();
+    	data.put("managerThreadData", tmxb.getThreadInfo(managerThread.getId()));
+    	
+    	return data;
     }
+
+//    /**
+//     * @param w Where to write to.
+//     */
+//    @Override
+//    public void shortReportLineTo(PrintWriter w) {
+//        if (!isRunning()) return; //???
+//        
+//        if (this.allQueues == null) {
+//            return;
+//        }
+//        int allCount = allQueues.size();
+//        int inProcessCount = inProcessQueues.size();
+//        int readyCount = readyClassQueues.size();
+//        int snoozedCount = getSnoozedCount();
+//        int activeCount = inProcessCount + readyCount + snoozedCount;
+//        int inactiveCount = getTotalEligibleInactiveQueues();
+//        int ineligibleCount = getTotalIneligibleInactiveQueues();
+//        int retiredCount = getRetiredQueues().size();
+//        int exhaustedCount = 
+//            allCount - activeCount - inactiveCount - retiredCount;
+//        State last = lastReachedState;
+//        w.print(last);
+//        w.print(" - ");
+//        w.print(allCount);
+//        w.print(" URI queues: ");
+//        w.print(activeCount);
+//        w.print(" active (");
+//        w.print(inProcessCount);
+//        w.print(" in-process; ");
+//        w.print(readyCount);
+//        w.print(" ready; ");
+//        w.print(snoozedCount);
+//        w.print(" snoozed); ");
+//        w.print(inactiveCount);
+//        w.print(" inactive; ");
+//        w.print(ineligibleCount);
+//        w.print(" ineligible; ");
+//        w.print(retiredCount);
+//        w.print(" retired; ");
+//        w.print(exhaustedCount);
+//        w.print(" exhausted");        
+//        w.flush();
+//    }
 
     /**
      * Total of all URIs in inactive queues at all precedences
@@ -1201,177 +1225,351 @@ implements Closeable,
         return inactiveCount;
     }
     
-    /* (non-Javadoc)
-     * @see org.archive.util.Reporter#singleLineLegend()
-     */
-    @Override
-    public String shortReportLegend() {
-        return "total active in-process ready snoozed inactive retired exhausted";
-    }
+//    /* (non-Javadoc)
+//     * @see org.archive.util.Reporter#singleLineLegend()
+//     */
+//    @Override
+//    public String shortReportLegend() {
+//        return "total active in-process ready snoozed inactive retired exhausted";
+//    }
 
+//    /**
+//     * This method compiles a human readable report on the status of the frontier
+//     * at the time of the call.
+//     * @param name Name of report.
+//     * @param writer Where to write to.
+//     * @deprecated
+//     */
+//    @Override
+//    public synchronized void reportTo(PrintWriter writer) {
+//        int allCount = allQueues.size();
+//        int inProcessCount = inProcessQueues.size();
+//        int readyCount = readyClassQueues.size();
+//        int snoozedCount = getSnoozedCount();
+//        int activeCount = inProcessCount + readyCount + snoozedCount;
+//        int inactiveCount = getTotalInactiveQueues();
+//        int retiredCount = getRetiredQueues().size();
+//        int exhaustedCount = 
+//            allCount - activeCount - inactiveCount - retiredCount;
+//        
+//        writer.print("Frontier report - ");
+//        writer.print(ArchiveUtils.get12DigitDate());
+//        writer.print("\n");
+//        writer.print(" Job being crawled: ");
+//        writer.print(controller.getMetadata().getJobName());
+//        writer.print("\n");
+//        writer.print("\n -----===== STATS =====-----\n");
+//        writer.print(" Discovered:    ");
+//        writer.print(Long.toString(discoveredUriCount()));
+//        writer.print("\n");
+//        writer.print(" Queued:        ");
+//        writer.print(Long.toString(queuedUriCount()));
+//        writer.print("\n");
+//        writer.print(" Finished:      ");
+//        writer.print(Long.toString(finishedUriCount()));
+//        writer.print("\n");
+//        writer.print("  Successfully: ");
+//        writer.print(Long.toString(succeededFetchCount()));
+//        writer.print("\n");
+//        writer.print("  Failed:       ");
+//        writer.print(Long.toString(failedFetchCount()));
+//        writer.print("\n");
+//        writer.print("  Disregarded:  ");
+//        writer.print(Long.toString(disregardedUriCount()));
+//        writer.print("\n");
+//        writer.print("\n -----===== QUEUES =====-----\n");
+//        writer.print(" Already included size:     ");
+//        writer.print(Long.toString(uriUniqFilter.count()));
+//        writer.print("\n");
+//        writer.print("               pending:     ");
+//        writer.print(Long.toString(uriUniqFilter.pending()));
+//        writer.print("\n");
+//        writer.print("\n All class queues map size: ");
+//        writer.print(Long.toString(allCount));
+//        writer.print("\n");
+//        writer.print( "             Active queues: ");
+//        writer.print(activeCount);
+//        writer.print("\n");
+//        writer.print("                    In-process: ");
+//        writer.print(inProcessCount);
+//        writer.print("\n");
+//        writer.print("                         Ready: ");
+//        writer.print(readyCount);
+//        writer.print("\n");
+//        writer.print("                       Snoozed: ");
+//        writer.print(snoozedCount);
+//        writer.print("\n");
+//        writer.print("           Inactive queues: ");
+//        writer.print(inactiveCount);
+//        writer.print(" (");
+//        Map<Integer,Queue<String>> inactives = getInactiveQueuesByPrecedence();
+//        boolean betwixt = false; 
+//        for(Integer k : inactives.keySet()) {
+//            if(betwixt) {
+//                writer.print("; ");
+//            }
+//            writer.print("p");
+//            writer.print(k);
+//            writer.print(": ");
+//            writer.print(inactives.get(k).size());
+//            betwixt = true; 
+//        }
+//        writer.print(")\n");
+//        writer.print("            Retired queues: ");
+//        writer.print(retiredCount);
+//        writer.print("\n");
+//        writer.print("          Exhausted queues: ");
+//        writer.print(exhaustedCount);
+//        writer.print("\n");
+//        
+//        State last = lastReachedState;
+//        writer.print("\n             Last state: "+last);        
+//        
+//        writer.print("\n -----===== MANAGER THREAD =====-----\n");
+//        ToeThread.reportThread(managerThread, writer);
+//        
+//        writer.print("\n -----===== "+largestQueues.size()+" LONGEST QUEUES =====-----\n");
+//        appendQueueReports(writer, "LONGEST", largestQueues.getEntriesDescending().iterator(), largestQueues.size(), largestQueues.size());
+//        
+//        writer.print("\n -----===== IN-PROCESS QUEUES =====-----\n");
+//        Collection<WorkQueue> inProcess = inProcessQueues;
+//        ArrayList<WorkQueue> copy = extractSome(inProcess, maxQueuesPerReportCategory);
+//        appendQueueReports(writer, "IN-PROCESS", copy.iterator(), copy.size(), maxQueuesPerReportCategory);
+//        
+//        writer.print("\n -----===== READY QUEUES =====-----\n");
+//        appendQueueReports(writer, "READY", this.readyClassQueues.iterator(),
+//            this.readyClassQueues.size(), maxQueuesPerReportCategory);
+//        
+//        writer.print("\n -----===== SNOOZED QUEUES =====-----\n");
+//        Object[] objs = snoozedClassQueues.toArray();
+//        DelayedWorkQueue[] qs = Arrays.copyOf(objs,objs.length,DelayedWorkQueue[].class);
+//        Arrays.sort(qs);
+//        appendQueueReports(writer, "SNOOZED", new ObjectArrayIterator(qs), getSnoozedCount(), maxQueuesPerReportCategory);
+//        
+//        writer.print("\n -----===== INACTIVE QUEUES =====-----\n");
+//        SortedMap<Integer,Queue<String>> sortedInactives = getInactiveQueuesByPrecedence();
+//        for(Integer prec : sortedInactives.keySet()) {
+//            Queue<String> inactiveQueues = sortedInactives.get(prec);
+//            appendQueueReports(writer, "INACTIVE-p"+prec, inactiveQueues.iterator(),
+//                    inactiveQueues.size(), maxQueuesPerReportCategory);
+//        }
+//        
+//        writer.print("\n -----===== RETIRED QUEUES =====-----\n");
+//        appendQueueReports(writer, "RETIRED", getRetiredQueues().iterator(),
+//            getRetiredQueues().size(), maxQueuesPerReportCategory);
+//        
+//        writer.flush();
+//    }
+    
+    public Iterator<Map<String, Object>> getInProcessQueuesDataAll() {
+    	return getInProcessQueuesData(0);
+    }
+    public Iterator<Map<String, Object>> getInProcessQueuesData() {
+    	return getInProcessQueuesData(maxQueuesPerReportCategory);
+    }
+    public Iterator<Map<String, Object>> getInProcessQueuesData(int maxCount) {
+    	final ArrayList<WorkQueue> inProcessQueuesCopy;
+    	// XXX these synchronization does nothing meaningful because nobody else
+    	// is synchronizing on inProcessQueues.
+    	if (maxCount > 0) {
+        	// extractSome synchronizes on inProcessQueues
+    		inProcessQueuesCopy = extractSome(inProcessQueues, maxCount);
+    	} else {
+    		synchronized (inProcessQueues) {
+    			// grab a copy that will be stable against mods for report duration
+    			inProcessQueuesCopy = new ArrayList<WorkQueue>(inProcessQueues);
+    		}
+    	}
+    	return new Iterator<Map<String, Object>>() {
+    		final Iterator<WorkQueue> itr = inProcessQueuesCopy.iterator();
+    		public boolean hasNext() {
+    			return itr.hasNext();
+    		};
+    		public Map<String, Object> next() {
+    			return itr.next().reportMap();
+    		};
+    		public void remove() {};
+    	};
+    }
+    // could reuse WorkQueue-to-Data Iterator above.
+    public class NamedQueueDataIterator implements Iterator<Map<String, Object>> {
+    	private Iterator<String> namesItr;
+    	public NamedQueueDataIterator(Iterator<String> namesItr) {
+			this.namesItr = namesItr;
+		}
+    	public NamedQueueDataIterator(Iterable<String> names) {
+    		this.namesItr = names.iterator();
+		}
+    	@Override
+    	public boolean hasNext() {
+    		return namesItr.hasNext();
+    	}
+    	@Override
+    	public Map<String, Object> next() {
+    		WorkQueue wq = allQueues.get(namesItr.next());
+    		return wq != null ? wq.reportMap() : null;
+    	}
+    	@Override
+    	public void remove() {
+    	}
+    	public int size() { return 0; /* TODO */ }
+    }
+    public class DelayedWorkQueuesDataIterator implements Iterator<Map<String, Object>> {
+    	Iterator<DelayedWorkQueue> itr; 
+    	public DelayedWorkQueuesDataIterator(Iterable<DelayedWorkQueue> queues) {
+    		this.itr = queues.iterator();
+		}
+		@Override
+		public boolean hasNext() {
+			return itr.hasNext();
+		}
+		@Override
+		public Map<String, Object> next() {
+			DelayedWorkQueue dwq = itr.next();
+			WorkQueue wq = dwq.getWorkQueue(WorkQueueFrontier.this);
+			return wq != null ? wq.reportMap() : null;
+		}
+		@Override
+		public void remove() {
+		}
+    }
+    
+    public Iterator<Map<String, Object>> getReadyQueuesData() {
+    	if (readyClassQueues == null) return null;
+    	return new NamedQueueDataIterator(readyClassQueues);
+    }
+    public Iterator<Map<String, Object>> getSnoozedQueuesData() {
+    	if (snoozedClassQueues == null) return null;
+    	return new DelayedWorkQueuesDataIterator(snoozedClassQueues);
+    }
+    public Iterator<Map<String, Object>> getSnoozedOverflowData() {
+    	if (snoozedOverflow == null) return null;
+    	return new DelayedWorkQueuesDataIterator(snoozedOverflow.values());
+    }
+    public Iterator<Map<String, Object>> getInactiveQueuesData() {
+    	//SortedMap<Integer, Queue<String>> inactiveQueues = getInactiveQueuesByPrecedence();
+    	SortedMap<Integer, Queue<String>> inactiveQueuesByPrecedence = getInactiveQueuesByPrecedence();
+    	if (inactiveQueuesByPrecedence == null) return null;
+    	final Collection<Queue<String>> inactiveQueues = inactiveQueuesByPrecedence.values();
+    	return new Iterator<Map<String, Object>>() {
+    		Iterator<Queue<String>> queueItr = inactiveQueues.iterator();
+    		int size = inactiveQueues.size();
+    		Iterator<String> namesItr = null;
+    		@Override
+    		public boolean hasNext() {
+				if (namesItr != null) {
+					if (namesItr.hasNext()) return true;
+					namesItr = null;
+				}
+				while (queueItr.hasNext()) {
+					Queue<String> queue = queueItr.next();
+					namesItr = queue.iterator();
+					if (namesItr.hasNext()) return true;
+					namesItr = null;
+    			}
+    			return false;
+    		}
+    		@Override
+    		public Map<String, Object> next() {
+    			WorkQueue wq = allQueues.get(namesItr.next());
+    			return wq.reportMap();
+    		}
+    		@Override
+    		public void remove() {
+    		}
+    	};
+    }
+    
+    public class WorkQueueDataListModel {
+    	private Queue<String> wqNames;
+    	public WorkQueueDataListModel(Queue<String> wqNames) {
+    		this.wqNames = wqNames;
+    	}
+    	public int size() {
+    		return wqNames.size();
+    	}
+    	public Iterator<Map<String, Object>> iterator() {
+    		return new NamedQueueDataIterator(wqNames.iterator());
+    	}
+    }
+    
     /**
-     * This method compiles a human readable report on the status of the frontier
-     * at the time of the call.
-     * @param name Name of report.
-     * @param writer Where to write to.
+     * return read-only model for accessing inactive queues.
+     * returned Map is not a {@link SortedMap}, but keys are in ascending order.
+     * keys are String because FreeMarker does not allow numerical keys with hash.
+     * @return
      */
-    @Override
-    public synchronized void reportTo(PrintWriter writer) {
-        int allCount = allQueues.size();
-        int inProcessCount = inProcessQueues.size();
-        int readyCount = readyClassQueues.size();
-        int snoozedCount = getSnoozedCount();
-        int activeCount = inProcessCount + readyCount + snoozedCount;
-        int inactiveCount = getTotalInactiveQueues();
-        int retiredCount = getRetiredQueues().size();
-        int exhaustedCount = 
-            allCount - activeCount - inactiveCount - retiredCount;
-        
-        writer.print("Frontier report - ");
-        writer.print(ArchiveUtils.get12DigitDate());
-        writer.print("\n");
-        writer.print(" Job being crawled: ");
-        writer.print(controller.getMetadata().getJobName());
-        writer.print("\n");
-        writer.print("\n -----===== STATS =====-----\n");
-        writer.print(" Discovered:    ");
-        writer.print(Long.toString(discoveredUriCount()));
-        writer.print("\n");
-        writer.print(" Queued:        ");
-        writer.print(Long.toString(queuedUriCount()));
-        writer.print("\n");
-        writer.print(" Finished:      ");
-        writer.print(Long.toString(finishedUriCount()));
-        writer.print("\n");
-        writer.print("  Successfully: ");
-        writer.print(Long.toString(succeededFetchCount()));
-        writer.print("\n");
-        writer.print("  Failed:       ");
-        writer.print(Long.toString(failedFetchCount()));
-        writer.print("\n");
-        writer.print("  Disregarded:  ");
-        writer.print(Long.toString(disregardedUriCount()));
-        writer.print("\n");
-        writer.print("\n -----===== QUEUES =====-----\n");
-        writer.print(" Already included size:     ");
-        writer.print(Long.toString(uriUniqFilter.count()));
-        writer.print("\n");
-        writer.print("               pending:     ");
-        writer.print(Long.toString(uriUniqFilter.pending()));
-        writer.print("\n");
-        writer.print("\n All class queues map size: ");
-        writer.print(Long.toString(allCount));
-        writer.print("\n");
-        writer.print( "             Active queues: ");
-        writer.print(activeCount);
-        writer.print("\n");
-        writer.print("                    In-process: ");
-        writer.print(inProcessCount);
-        writer.print("\n");
-        writer.print("                         Ready: ");
-        writer.print(readyCount);
-        writer.print("\n");
-        writer.print("                       Snoozed: ");
-        writer.print(snoozedCount);
-        writer.print("\n");
-        writer.print("           Inactive queues: ");
-        writer.print(inactiveCount);
-        writer.print(" (");
-        Map<Integer,Queue<String>> inactives = getInactiveQueuesByPrecedence();
-        boolean betwixt = false; 
-        for(Integer k : inactives.keySet()) {
-            if(betwixt) {
-                writer.print("; ");
-            }
-            writer.print("p");
-            writer.print(k);
-            writer.print(": ");
-            writer.print(inactives.get(k).size());
-            betwixt = true; 
-        }
-        writer.print(")\n");
-        writer.print("            Retired queues: ");
-        writer.print(retiredCount);
-        writer.print("\n");
-        writer.print("          Exhausted queues: ");
-        writer.print(exhaustedCount);
-        writer.print("\n");
-        
-        State last = lastReachedState;
-        writer.print("\n             Last state: "+last);        
-        
-        writer.print("\n -----===== MANAGER THREAD =====-----\n");
-        ToeThread.reportThread(managerThread, writer);
-        
-        writer.print("\n -----===== "+largestQueues.size()+" LONGEST QUEUES =====-----\n");
-        appendQueueReports(writer, "LONGEST", largestQueues.getEntriesDescending().iterator(), largestQueues.size(), largestQueues.size());
-        
-        writer.print("\n -----===== IN-PROCESS QUEUES =====-----\n");
-        Collection<WorkQueue> inProcess = inProcessQueues;
-        ArrayList<WorkQueue> copy = extractSome(inProcess, maxQueuesPerReportCategory);
-        appendQueueReports(writer, "IN-PROCESS", copy.iterator(), copy.size(), maxQueuesPerReportCategory);
-        
-        writer.print("\n -----===== READY QUEUES =====-----\n");
-        appendQueueReports(writer, "READY", this.readyClassQueues.iterator(),
-            this.readyClassQueues.size(), maxQueuesPerReportCategory);
-        
-        writer.print("\n -----===== SNOOZED QUEUES =====-----\n");
-        Object[] objs = snoozedClassQueues.toArray();
-        DelayedWorkQueue[] qs = Arrays.copyOf(objs,objs.length,DelayedWorkQueue[].class);
-        Arrays.sort(qs);
-        appendQueueReports(writer, "SNOOZED", new ObjectArrayIterator(qs), getSnoozedCount(), maxQueuesPerReportCategory);
-        
-        writer.print("\n -----===== INACTIVE QUEUES =====-----\n");
-        SortedMap<Integer,Queue<String>> sortedInactives = getInactiveQueuesByPrecedence();
-        for(Integer prec : sortedInactives.keySet()) {
-            Queue<String> inactiveQueues = sortedInactives.get(prec);
-            appendQueueReports(writer, "INACTIVE-p"+prec, inactiveQueues.iterator(),
-                    inactiveQueues.size(), maxQueuesPerReportCategory);
-        }
-        
-        writer.print("\n -----===== RETIRED QUEUES =====-----\n");
-        appendQueueReports(writer, "RETIRED", getRetiredQueues().iterator(),
-            getRetiredQueues().size(), maxQueuesPerReportCategory);
-        
-        writer.flush();
+    public Map<String, WorkQueueDataListModel> getInactiveQueuesDataByPrecedence() {
+    	SortedMap<Integer, Queue<String>> inactiveQueuesByPrecedence = getInactiveQueuesByPrecedence();
+    	if (inactiveQueuesByPrecedence == null) return null;
+    	Map<String, WorkQueueDataListModel> data = new LinkedHashMap<String, WorkQueueDataListModel>();
+    	for (Entry<Integer, Queue<String>> ent : inactiveQueuesByPrecedence.entrySet()) {
+    		data.put(Integer.toString(ent.getKey()), new WorkQueueDataListModel(ent.getValue()));
+    	}
+    	return data;
+    }
+    
+    public Iterator<Map<String, Object>> getRetiredQueuesData() {
+    	return new NamedQueueDataIterator(getRetiredQueues());
+    }
+    
+    public Iterator<Map<String, Object>> getLargestQueuesData() {
+    	if (largestQueues == null) return null;
+    	final Iterator<Entry<?, Long>> entItr = largestQueues.getEntriesDescending().iterator();
+    	return new Iterator<Map<String, Object>>() {
+    		@Override
+    		public boolean hasNext() {
+    			return entItr.hasNext();
+    		}
+    		public Map<String, Object> next() {
+    			String queueName = (String)entItr.next().getKey();
+    			return allQueues.get(queueName).reportMap();
+    		};
+    		@Override
+    		public void remove() {}
+    	};
     }
     
     /** Compact report of all nonempty queues (one queue per line)
      * 
      * @param writer
      */
+    @Deprecated
     public void allNonemptyReportTo(PrintWriter writer) {
-        ArrayList<WorkQueue> inProcessQueuesCopy;
-        synchronized(this.inProcessQueues) {
-            // grab a copy that will be stable against mods for report duration 
-            Collection<WorkQueue> inProcess = this.inProcessQueues;
-            inProcessQueuesCopy = new ArrayList<WorkQueue>(inProcess);
-        }
-        writer.print("\n -----===== IN-PROCESS QUEUES =====-----\n");
-        queueSingleLinesTo(writer, inProcessQueuesCopy.iterator());
-
-        writer.print("\n -----===== READY QUEUES =====-----\n");
-        queueSingleLinesTo(writer, this.readyClassQueues.iterator());
-
-        writer.print("\n -----===== SNOOZED QUEUES =====-----\n");
-        queueSingleLinesTo(writer, this.snoozedClassQueues.iterator());
-        queueSingleLinesTo(writer, this.snoozedOverflow.values().iterator());
-        
-        writer.print("\n -----===== INACTIVE QUEUES =====-----\n");
-        for(Queue<String> inactiveQueues : getInactiveQueuesByPrecedence().values()) {
-            queueSingleLinesTo(writer, inactiveQueues.iterator());
-        }
-        
-        writer.print("\n -----===== RETIRED QUEUES =====-----\n");
-        queueSingleLinesTo(writer, getRetiredQueues().iterator());
+    	throw new RuntimeException("should no longer be called.");
+//        ArrayList<WorkQueue> inProcessQueuesCopy;
+//        synchronized(this.inProcessQueues) {
+//            // grab a copy that will be stable against mods for report duration 
+//            Collection<WorkQueue> inProcess = this.inProcessQueues;
+//            inProcessQueuesCopy = new ArrayList<WorkQueue>(inProcess);
+//        }
+//        writer.print("\n -----===== IN-PROCESS QUEUES =====-----\n");
+//        queueSingleLinesTo(writer, inProcessQueuesCopy.iterator());
+//
+//        writer.print("\n -----===== READY QUEUES =====-----\n");
+//        queueSingleLinesTo(writer, this.readyClassQueues.iterator());
+//
+//        writer.print("\n -----===== SNOOZED QUEUES =====-----\n");
+//        queueSingleLinesTo(writer, this.snoozedClassQueues.iterator());
+//        queueSingleLinesTo(writer, this.snoozedOverflow.values().iterator());
+//        
+//        writer.print("\n -----===== INACTIVE QUEUES =====-----\n");
+//        for(Queue<String> inactiveQueues : getInactiveQueuesByPrecedence().values()) {
+//            queueSingleLinesTo(writer, inactiveQueues.iterator());
+//        }
+//        
+//        writer.print("\n -----===== RETIRED QUEUES =====-----\n");
+//        queueSingleLinesTo(writer, getRetiredQueues().iterator());
     }
 
     /** Compact report of all nonempty queues (one queue per line)
      * 
      * @param writer
      */
+    @Deprecated
     public void allQueuesReportTo(PrintWriter writer) {
-        queueSingleLinesTo(writer, allQueues.keySet().iterator());
+    	throw new RuntimeException("should no longer be called");
+//        queueSingleLinesTo(writer, allQueues.keySet().iterator());
     }
     
     /**
@@ -1381,39 +1579,39 @@ implements Closeable,
      * @param writer to receive report
      * @param iterator over queues of interest.
      */
-    private void queueSingleLinesTo(PrintWriter writer, Iterator<?> iterator) {
-        Object obj;
-        WorkQueue q;
-        boolean legendWritten = false;
-        while( iterator.hasNext()) {
-            obj = iterator.next();
-            if (obj ==  null) {
-                continue;
-            }
-            if(obj instanceof WorkQueue) {
-                q = (WorkQueue)obj;
-            } else if (obj instanceof DelayedWorkQueue) {
-                q = ((DelayedWorkQueue)obj).getWorkQueue(this);
-            } else {
-                try {
-                    q = this.allQueues.get((String)obj);
-                } catch (ClassCastException cce) {
-                    logger.log(Level.SEVERE,"not convertible to workqueue:"+obj,cce);
-                    q = null; 
-                }
-            }
-
-            if(q != null) {
-                if(!legendWritten) {
-                    writer.println(q.shortReportLegend());
-                    legendWritten = true;
-                }
-                q.shortReportLineTo(writer);
-            } else {
-                writer.print(" ERROR: "+obj);
-            }
-        }       
-    }
+//    private void queueSingleLinesTo(PrintWriter writer, Iterator<?> iterator) {
+//        Object obj;
+//        WorkQueue q;
+//        boolean legendWritten = false;
+//        while( iterator.hasNext()) {
+//            obj = iterator.next();
+//            if (obj ==  null) {
+//                continue;
+//            }
+//            if(obj instanceof WorkQueue) {
+//                q = (WorkQueue)obj;
+//            } else if (obj instanceof DelayedWorkQueue) {
+//                q = ((DelayedWorkQueue)obj).getWorkQueue(this);
+//            } else {
+//                try {
+//                    q = this.allQueues.get((String)obj);
+//                } catch (ClassCastException cce) {
+//                    logger.log(Level.SEVERE,"not convertible to workqueue:"+obj,cce);
+//                    q = null; 
+//                }
+//            }
+//
+//            if(q != null) {
+//                if(!legendWritten) {
+//                    writer.println(q.shortReportLegend());
+//                    legendWritten = true;
+//                }
+//                q.shortReportLineTo(writer);
+//            } else {
+//                writer.print(" ERROR: "+obj);
+//            }
+//        }       
+//    }
 
     /**
      * Extract some of the elements in the given collection to an
@@ -1442,45 +1640,46 @@ implements Closeable,
         return list;
     }
 
-    /**
-     * Append queue report to general Frontier report.
-     * @param w StringBuffer to append to.
-     * @param iterator An iterator over 
-     * @param total
-     * @param max
-     */
-    @SuppressWarnings("rawtypes")
-    protected void appendQueueReports(PrintWriter w, String label, Iterator<?> iterator,
-            int total, int max) {
-        Object obj;
-        WorkQueue q;
-        int count;
-        for(count = 0; iterator.hasNext() && (count < max); count++) {
-            obj = iterator.next();
-            if (obj ==  null) {
-                continue;
-            }
-            if(obj instanceof WorkQueue) {
-                q = (WorkQueue)obj;
-            } else if (obj instanceof DelayedWorkQueue) {
-                q = (WorkQueue)((DelayedWorkQueue)obj).getWorkQueue(this);
-            } else if (obj instanceof Map.Entry) {
-                q = this.allQueues.get((String)((Map.Entry)obj).getKey());
-            } else {
-                q = this.allQueues.get((String)obj);
-            }
-            if(q != null) {
-                w.println(label+"#"+count+":");
-                q.reportTo(w);
-            } else {
-                w.print("WARNING: No report for queue "+obj);
-            }
-        }
-        count++;
-        if(count < total) {
-            w.print("...and " + (total - count) + " more "+label+".\n");
-        }
-    }
+//    /**
+//     * Append queue report to general Frontier report.
+//     * @param w StringBuffer to append to.
+//     * @param iterator An iterator over 
+//     * @param total
+//     * @param max
+//     */
+//    @Deprecated
+//    @SuppressWarnings("rawtypes")
+//    protected void appendQueueReports(PrintWriter w, String label, Iterator<?> iterator,
+//            int total, int max) {
+//        Object obj;
+//        WorkQueue q;
+//        int count;
+//        for(count = 0; iterator.hasNext() && (count < max); count++) {
+//            obj = iterator.next();
+//            if (obj ==  null) {
+//                continue;
+//            }
+//            if(obj instanceof WorkQueue) {
+//                q = (WorkQueue)obj;
+//            } else if (obj instanceof DelayedWorkQueue) {
+//                q = (WorkQueue)((DelayedWorkQueue)obj).getWorkQueue(this);
+//            } else if (obj instanceof Map.Entry) {
+//                q = this.allQueues.get((String)((Map.Entry)obj).getKey());
+//            } else {
+//                q = this.allQueues.get((String)obj);
+//            }
+//            if(q != null) {
+//                w.println(label+"#"+count+":");
+//                q.reportTo(w);
+//            } else {
+//                w.print("WARNING: No report for queue "+obj);
+//            }
+//        }
+//        count++;
+//        if(count < total) {
+//            w.print("...and " + (total - count) + " more "+label+".\n");
+//        }
+//    }
 
     /**
      * Force logging, etc. of operator- deleted CrawlURIs

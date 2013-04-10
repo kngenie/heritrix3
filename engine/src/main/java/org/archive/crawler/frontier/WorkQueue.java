@@ -40,7 +40,7 @@ import org.archive.util.ArchiveUtils;
 import org.archive.util.IdentityCacheable;
 import org.archive.util.ObjectIdentityCache;
 import org.archive.util.ReportUtils;
-import org.archive.util.Reporter;
+import org.archive.util.TextReporter;
 
 /**
  * A single queue of related URIs to visit, grouped by a classKey
@@ -50,7 +50,7 @@ import org.archive.util.Reporter;
  * @author Christian Kohlschuetter 
  */
 public abstract class WorkQueue implements Frontier.FrontierGroup,
-        Serializable, Reporter, Delayed, IdentityCacheable {
+        Serializable, TextReporter, Delayed, IdentityCacheable {
     private static final long serialVersionUID = -3199666138837266341L;
     private static final Logger logger =
         Logger.getLogger(WorkQueue.class.getName());
@@ -468,6 +468,7 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
         } else {
             map.put("lastDequeueTime", null);
         }
+        // TODO: bug fix: key should be "wakeTime"
         if (wakeTime != 0) {
             map.put("lastDequeueTime", new Date(wakeTime));
         } else {
@@ -478,15 +479,24 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
         map.put("errorCount", errorCount);
         map.put("lastPeeked", lastPeeked);
         map.put("lastQueued", lastQueued);
+        
+        map.put("substats", substats.reportMap());
+        map.put("precedenceProvider", getPrecedenceProvider().reportMap());
 
         return map;
+    }
+    
+    @Override
+    public Map<String, Object> reportMap() {
+    	Map<String, Object> data = shortReportMap();
+    	return data;
     }
 
     protected long getSessionBalance() {
         return sessionBudget - (totalExpenditure-expenditureAtLastActivation);
     }
 
-    @Override
+//    @Override
     public synchronized void shortReportLineTo(PrintWriter writer) {
         // queue name
         writer.print(classKey);
@@ -534,62 +544,63 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
         writer.print("\n");
     }
 
-    @Override
+//    @Override
     public String shortReportLegend() {
         return "queue precedence currentSize totalEnqueues sessionBalance " +
                 "lastCost (averageCost) lastDequeueTime wakeTime " +
                 "totalSpend/totalBudget errorCount lastPeekUri lastQueuedUri";
     }
     
+    // still used for logging
     public String shortReportLine() {
         return ReportUtils.shortReportLine(this);
     }
     
-    /**
-     * @param writer
-     * @throws IOException
-     */
-    @Override
-    public synchronized void reportTo(PrintWriter writer) {
-        // name is ignored: only one kind of report for now
-        writer.print("Queue ");
-        writer.print(classKey);
-        writer.print(" (p");
-        writer.print(getPrecedence());
-        writer.print(")\n");
-        writer.print("  ");
-        writer.print(Long.toString(count));
-        writer.print(" items");
-        if (wakeTime != 0) {
-            writer.print("\n   wakes in: "+ArchiveUtils.formatMillisecondsToConventional(wakeTime - System.currentTimeMillis()));
-        }
-        writer.print("\n    last enqueued: ");
-        writer.print(lastQueued);
-        writer.print("\n      last peeked: ");
-        writer.print(lastPeeked);
-        writer.print("\n");
-        writer.print("   total expended: ");
-        writer.print(Long.toString(totalExpenditure));
-        writer.print(" (total budget: ");
-        writer.print(Long.toString(totalBudget));
-        writer.print(")\n");
-        writer.print("   active balance: ");
-        writer.print(getSessionBalance());
-        writer.print("\n   last(avg) cost: ");
-        writer.print(lastCost);
-        writer.print("(");
-        writer.print(ArchiveUtils.doubleToString(
-                    ((double) totalExpenditure / costCount), 1));
-        writer.print(")\n   ");
-        writer.print(getSubstats().shortReportLegend());
-        writer.print("\n   ");
-        writer.print(getSubstats().shortReportLine());
-        writer.print("\n   ");
-        writer.print(getPrecedenceProvider().shortReportLegend());
-        writer.print("\n   ");
-        writer.print(getPrecedenceProvider().shortReportLine());
-        writer.print("\n\n");
-    }
+//    /**
+//     * @param writer
+//     * @throws IOException
+//     */
+//    @Override
+//    public synchronized void reportTo(PrintWriter writer) {
+//        // name is ignored: only one kind of report for now
+//        writer.print("Queue ");
+//        writer.print(classKey);
+//        writer.print(" (p");
+//        writer.print(getPrecedence());
+//        writer.print(")\n");
+//        writer.print("  ");
+//        writer.print(Long.toString(count));
+//        writer.print(" items");
+//        if (wakeTime != 0) {
+//            writer.print("\n   wakes in: "+ArchiveUtils.formatMillisecondsToConventional(wakeTime - System.currentTimeMillis()));
+//        }
+//        writer.print("\n    last enqueued: ");
+//        writer.print(lastQueued);
+//        writer.print("\n      last peeked: ");
+//        writer.print(lastPeeked);
+//        writer.print("\n");
+//        writer.print("   total expended: ");
+//        writer.print(Long.toString(totalExpenditure));
+//        writer.print(" (total budget: ");
+//        writer.print(Long.toString(totalBudget));
+//        writer.print(")\n");
+//        writer.print("   active balance: ");
+//        writer.print(getSessionBalance());
+//        writer.print("\n   last(avg) cost: ");
+//        writer.print(lastCost);
+//        writer.print("(");
+//        writer.print(ArchiveUtils.doubleToString(
+//                    ((double) totalExpenditure / costCount), 1));
+//        writer.print(")\n   ");
+//        writer.print(getSubstats().shortReportLegend());
+//        writer.print("\n   ");
+//        writer.print(getSubstats().shortReportLine());
+//        writer.print("\n   ");
+//        writer.print(getPrecedenceProvider().shortReportLegend());
+//        writer.print("\n   ");
+//        writer.print(getPrecedenceProvider().shortReportLine());
+//        writer.print("\n\n");
+//    }
     
     public FetchStats getSubstats() {
         return substats;

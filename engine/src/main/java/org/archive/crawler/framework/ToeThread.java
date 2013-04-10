@@ -44,8 +44,7 @@ import org.archive.util.ArchiveUtils;
 import org.archive.util.DevUtils;
 import org.archive.util.ProgressStatisticsReporter;
 import org.archive.util.Recorder;
-import org.archive.util.ReportUtils;
-import org.archive.util.Reporter;
+import org.archive.util.ThreadReporter;
 
 import com.sleepycat.util.RuntimeExceptionWrapper;
 
@@ -56,7 +55,7 @@ import com.sleepycat.util.RuntimeExceptionWrapper;
  * @author Gordon Mohr
  */
 public class ToeThread extends Thread
-implements Reporter, ProgressStatisticsReporter, 
+implements ThreadReporter, ProgressStatisticsReporter, 
            HostResolver, SinkHandlerLogThread, ChainStatusReceiver {
 
     public enum Step {
@@ -498,15 +497,11 @@ implements Reporter, ProgressStatisticsReporter,
     public Map<String, Object> shortReportMap() {
         Map<String,Object> data = new LinkedHashMap<String, Object>();
         data.put("serialNumber", serialNumber);
-        data.put("name", getName());
         CrawlURI c = currentCuri;
         if (c != null) {
             data.put("currentURI", c.toString());
-            data.put("pathFromSeed", c.getPathFromSeed());
-            data.put("via", c.flattenVia());
             data.put("currentProcessor", currentProcessorName);
             data.put("fetchAttempts", c.getFetchAttempts());
-            data.put("uriClassName", getClass().getName());
         } else {
             data.put("currentURI", null);
         }
@@ -524,18 +519,31 @@ implements Reporter, ProgressStatisticsReporter,
         data.put("currentStatusElapsedPretty", ArchiveUtils.formatMillisecondsToConventional(time));
         data.put("step", step);
         data.put("stepElapsedMilliseconds", (now - atStepSince));
-        
-    	ThreadMXBean tmxb = ManagementFactory.getThreadMXBean();
-    	data.put("threadInfo", tmxb.getThreadInfo(getId()));
-    	data.put("stackTrace", getStackTrace());
 
         return data;
+    }
+    
+    @Override
+    public Map<String, Object> reportMap() {
+    	Map<String, Object> data = shortReportMap();
+    	data.put("name", getName());
+    	CrawlURI c = currentCuri;
+    	if (c != null) {
+    		data.put("pathFromSeed", c.getPathFromSeed());
+    		data.put("via", c.flattenVia());
+    		data.put("uriClassName", c.getClass().getName());
+    	}
+
+    	ThreadMXBean tmxb = ManagementFactory.getThreadMXBean();
+    	data.put("threadInfo", tmxb.getThreadInfo(getId()));
+
+    	return data;
     }
 
     /**
      * @param w PrintWriter to write to.
      */
-    @Override
+    //@Override
     public void shortReportLineTo(PrintWriter w)
     {
         w.print("#");
@@ -583,14 +591,15 @@ implements Reporter, ProgressStatisticsReporter,
         w.flush();
     }
 
-    @Override
+    //@Override
     public String shortReportLegend() {
         return "#serialNumber processorName currentUri (fetchAttempts) threadState threadStep";
     }
 
-    public String shortReportLine() {
-        return ReportUtils.shortReportLine(this);
-    }
+//    @Deprecated
+//    public String shortReportLine() {
+//        return ReportUtils.shortReportLine(this);
+//    }
 
     public void progressStatisticsLine(PrintWriter writer) {
         writer.print(getController().getStatisticsTracker()

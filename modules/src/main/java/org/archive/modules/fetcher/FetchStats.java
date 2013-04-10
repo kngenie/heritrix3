@@ -18,7 +18,6 @@
  */
 package org.archive.modules.fetcher;
 
-import java.io.PrintWriter;
 import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -26,8 +25,6 @@ import java.util.Map;
 import org.apache.commons.httpclient.HttpStatus;
 import org.archive.modules.CrawlURI;
 import org.archive.modules.deciderules.recrawl.IdenticalDigestDecideRule;
-import org.archive.util.ArchiveUtils;
-import org.archive.util.ReportUtils;
 import org.archive.util.Reporter;
 
 /**
@@ -188,48 +185,48 @@ public class FetchStats implements Serializable, FetchStatusCodes, Reporter {
         return dupByHashUrls;
     }
 
-    /* (non-Javadoc)
-     * @see org.archive.util.Reporter#reportTo(java.io.PrintWriter)
-     */
-    @Override // Reporter
-    public void reportTo(PrintWriter writer) {
-        writer.println(shortReportLegend());
-        shortReportLineTo(writer);
-    }
+//    /* (non-Javadoc)
+//     * @see org.archive.util.Reporter#reportTo(java.io.PrintWriter)
+//     */
+//    @Override // Reporter
+//    public void reportTo(PrintWriter writer) {
+//        writer.println(shortReportLegend());
+//        shortReportLineTo(writer);
+//    }
 
-    @Override
+    //@Override // still used by WorkQueue.reportTo()
     public String shortReportLegend() {
         return "totalScheduled fetchSuccesses fetchFailures fetchDisregards " +
                 "fetchResponses robotsDenials successBytes totalBytes " +
                 "fetchNonResponses lastSuccessTime";
     }
 
-    public String shortReportLine() {
-        return ReportUtils.shortReportLine(this);
-    }
+//    public String shortReportLine() {
+//        return ReportUtils.shortReportLine(this);
+//    }
 
-    @Override
-    public void shortReportLineTo(PrintWriter writer) {
-        writer.print(totalScheduled);
-        writer.print(" ");
-        writer.print(fetchSuccesses);
-        writer.print(" ");
-        writer.print(fetchFailures);
-        writer.print(" "); 
-        writer.print(fetchDisregards);
-        writer.print(" "); 
-        writer.print(fetchResponses);
-        writer.print(" "); 
-        writer.print(robotsDenials);
-        writer.print(" "); 
-        writer.print(successBytes);
-        writer.print(" "); 
-        writer.print(totalBytes);
-        writer.print(" "); 
-        writer.print(fetchNonResponses);
-        writer.print(" "); 
-        writer.print(ArchiveUtils.getLog17Date(lastSuccessTime));
-    }
+//    @Override
+//    public void shortReportLineTo(PrintWriter writer) {
+//        writer.print(totalScheduled);
+//        writer.print(" ");
+//        writer.print(fetchSuccesses);
+//        writer.print(" ");
+//        writer.print(fetchFailures);
+//        writer.print(" "); 
+//        writer.print(fetchDisregards);
+//        writer.print(" "); 
+//        writer.print(fetchResponses);
+//        writer.print(" "); 
+//        writer.print(robotsDenials);
+//        writer.print(" "); 
+//        writer.print(successBytes);
+//        writer.print(" "); 
+//        writer.print(totalBytes);
+//        writer.print(" "); 
+//        writer.print(fetchNonResponses);
+//        writer.print(" "); 
+//        writer.print(ArchiveUtils.getLog17Date(lastSuccessTime));
+//    }
 
     @Override
     public Map<String, Object> shortReportMap() {
@@ -245,6 +242,10 @@ public class FetchStats implements Serializable, FetchStatusCodes, Reporter {
         map.put("fetchNonResponses", fetchNonResponses);
         map.put("lastSuccessTime",lastSuccessTime);
         return map;
+    }
+    
+    public Map<String, Object> reportMap() {
+    	return shortReportMap();
     }
 
     public long getLastSuccessTime() {

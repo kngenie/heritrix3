@@ -737,24 +737,24 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         return map;
     }
 
-    public Object rateReport() {
-        StatisticsTracker stats = getStats();
-        if(stats==null) {
-            return "<i>n/a</i>";
-        }
-        CrawlStatSnapshot snapshot = stats.getSnapshot();
-        StringBuilder sb = new StringBuilder();
-        sb
-         .append(ArchiveUtils.doubleToString(snapshot.currentDocsPerSecond,2))
-         .append(" URIs/sec (")
-         .append(ArchiveUtils.doubleToString(snapshot.docsPerSecond,2))
-         .append(" avg); ")
-         .append(snapshot.currentKiBPerSec)
-         .append(" KB/sec (")
-         .append(snapshot.totalKiBPerSec)
-         .append(" avg)");
-        return sb.toString();
-    }
+//    public Object rateReport() {
+//        StatisticsTracker stats = getStats();
+//        if(stats==null) {
+//            return "<i>n/a</i>";
+//        }
+//        CrawlStatSnapshot snapshot = stats.getSnapshot();
+//        StringBuilder sb = new StringBuilder();
+//        sb
+//         .append(ArchiveUtils.doubleToString(snapshot.currentDocsPerSecond,2))
+//         .append(" URIs/sec (")
+//         .append(ArchiveUtils.doubleToString(snapshot.docsPerSecond,2))
+//         .append(" avg); ")
+//         .append(snapshot.currentKiBPerSec)
+//         .append(" KB/sec (")
+//         .append(snapshot.totalKiBPerSec)
+//         .append(" avg)");
+//        return sb.toString();
+//    }
 
     public Map<String,Number> loadReportData() {
         StatisticsTracker stats = getStats();
@@ -773,26 +773,26 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         return map;
     }
 
-    public Object loadReport() {
-        StatisticsTracker stats = getStats();
-        if(stats==null) {
-            return "<i>n/a</i>";
-        }
-        CrawlStatSnapshot snapshot = stats.getSnapshot();
-        StringBuilder sb = new StringBuilder();
-        sb
-         .append(snapshot.busyThreads)
-         .append(" active of ")
-         .append(stats.threadCount())
-         .append(" threads; ")
-         .append(ArchiveUtils.doubleToString(snapshot.congestionRatio,2))
-         .append(" congestion ratio; ")
-         .append(snapshot.deepestUri)
-         .append("  deepest queue; ")
-         .append(snapshot.averageDepth)
-         .append("  average depth");
-        return sb.toString();
-    }
+//    public Object loadReport() {
+//        StatisticsTracker stats = getStats();
+//        if(stats==null) {
+//            return "<i>n/a</i>";
+//        }
+//        CrawlStatSnapshot snapshot = stats.getSnapshot();
+//        StringBuilder sb = new StringBuilder();
+//        sb
+//         .append(snapshot.busyThreads)
+//         .append(" active of ")
+//         .append(stats.threadCount())
+//         .append(" threads; ")
+//         .append(ArchiveUtils.doubleToString(snapshot.congestionRatio,2))
+//         .append(" congestion ratio; ")
+//         .append(snapshot.deepestUri)
+//         .append("  deepest queue; ")
+//         .append(snapshot.averageDepth)
+//         .append("  average depth");
+//        return sb.toString();
+//    }
 
     public Map<String,Long> uriTotalsReportData() {
         StatisticsTracker stats = getStats();
@@ -811,28 +811,28 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         return totals;
     }
     
-    public String uriTotalsReport() {
-        Map<String,Long> uriTotals = uriTotalsReportData();
-        if (uriTotals == null) {
-            return "<i>n/a</i>";
-        }
-
-        StringBuilder sb = new StringBuilder(64); 
-        sb
-         .append(uriTotals.get("downloadedUriCount"))
-         .append(" downloaded + ")
-         .append(uriTotals.get("queuedUriCount"))
-         .append(" queued = ")
-         .append(uriTotals.get("totalUriCount"))
-         .append(" total");
-        if(uriTotals.get("futureUriCount") >0) {
-            sb
-             .append(" (")
-             .append(uriTotals.get("futureUriCount"))
-             .append(" future)");
-        }
-        return sb.toString(); 
-    }
+//    public String uriTotalsReport() {
+//        Map<String,Long> uriTotals = uriTotalsReportData();
+//        if (uriTotals == null) {
+//            return "<i>n/a</i>";
+//        }
+//
+//        StringBuilder sb = new StringBuilder(64); 
+//        sb
+//         .append(uriTotals.get("downloadedUriCount"))
+//         .append(" downloaded + ")
+//         .append(uriTotals.get("queuedUriCount"))
+//         .append(" queued = ")
+//         .append(uriTotals.get("totalUriCount"))
+//         .append(" total");
+//        if(uriTotals.get("futureUriCount") >0) {
+//            sb
+//             .append(" (")
+//             .append(uriTotals.get("futureUriCount"))
+//             .append(" future)");
+//        }
+//        return sb.toString(); 
+//    }
 
     public Map<String,Long> sizeTotalsReportData() {
         StatisticsTracker stats = getStats();
@@ -847,13 +847,13 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         return map;
     }
 
-    public String sizeTotalsReport() {
-        StatisticsTracker stats = getStats();
-        if(stats==null) {
-            return "<i>n/a</i>";
-        }
-        return stats.crawledBytesSummary();
-    }
+//    public String sizeTotalsReport() {
+//        StatisticsTracker stats = getStats();
+//        if(stats==null) {
+//            return "<i>n/a</i>";
+//        }
+//        return stats.crawledBytesSummary();
+//    }
 
     public Map<String,Object> elapsedReportData() {
         StatisticsTracker stats = getStats();
@@ -869,14 +869,14 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         return map;
     }
 
-    public String elapsedReport() {
-        StatisticsTracker stats = getStats();
-        if(stats==null) {
-            return "<i>n/a</i>";
-        }
-        long timeElapsed = stats.getCrawlElapsedTime();
-        return ArchiveUtils.formatMillisecondsToConventional(timeElapsed);
-    }
+//    public String elapsedReport() {
+//        StatisticsTracker stats = getStats();
+//        if(stats==null) {
+//            return "<i>n/a</i>";
+//        }
+//        long timeElapsed = stats.getCrawlElapsedTime();
+//        return ArchiveUtils.formatMillisecondsToConventional(timeElapsed);
+//    }
 
     public Map<String,Object> threadReportData() {
         CrawlController cc = getCrawlController();
@@ -886,13 +886,13 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         return cc.getToeThreadReportShortData();
     }
 
-    public String threadReport() {
-        CrawlController cc = getCrawlController();
-        if(cc==null) {
-            return "<i>n/a</i>";
-        }
-        return cc.getToeThreadReportShort();
-    }
+//    public String threadReport() {
+//        CrawlController cc = getCrawlController();
+//        if(cc==null) {
+//            return "<i>n/a</i>";
+//        }
+//        return cc.getToeThreadReportShort();
+//    }
 
     public Map<String,Object> frontierReportData() {
         CrawlController cc = getCrawlController();
@@ -902,13 +902,13 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         return cc.getFrontier().shortReportMap();
     }
 
-    public String frontierReport() {
-        CrawlController cc = getCrawlController();
-        if(cc==null) {
-            return "<i>n/a</i>";
-        }
-        return cc.getFrontierReportShort();
-    }
+//    public String frontierReport() {
+//        CrawlController cc = getCrawlController();
+//        if(cc==null) {
+//            return "<i>n/a</i>";
+//        }
+//        return cc.getFrontierReportShort();
+//    }
 
     public void terminate() {
         getCrawlController().requestCrawlStop();

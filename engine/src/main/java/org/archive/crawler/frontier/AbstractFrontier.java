@@ -39,6 +39,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.management.ThreadInfo;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1128,9 +1129,10 @@ public abstract class AbstractFrontier
     //
     // Reporter implementation
     // 
-    public String shortReportLine() {
-        return ReportUtils.shortReportLine(this);
-    }
+//    @Deprecated
+//    public String shortReportLine() {
+//        return ReportUtils.shortReportLine(this);
+//    }
 
     @Override
     public void onApplicationEvent(ApplicationEvent event) {

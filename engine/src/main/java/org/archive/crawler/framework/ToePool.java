@@ -20,17 +20,14 @@
 package org.archive.crawler.framework;
 
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
 import org.apache.commons.lang.StringUtils;
 import org.archive.crawler.reporting.AlertThreadGroup;
-import org.archive.util.ArchiveUtils;
 import org.archive.util.Histotable;
 import org.archive.util.Reporter;
 
@@ -126,7 +123,7 @@ public class ToePool extends ThreadGroup implements Reporter {
     		}
     		@Override
     		public Map<String,Object> next() {
-    			return ((ToeThread)toes[idx++]).shortReportMap();
+    			return ((ToeThread)toes[idx++]).reportMap();
     		};
     		@Override
     		public void remove() {}
@@ -214,9 +211,9 @@ public class ToePool extends ThreadGroup implements Reporter {
     // Reporter implementation
     //
     
-    @Override
-    public void reportTo(PrintWriter writer) {
-    	// re-implemented as FreeMarker template
+//    @Override
+//    public void reportTo(PrintWriter writer) {
+//    	// re-implemented as FreeMarker template
 //        writer.print("Toe threads report - "
 //                + ArchiveUtils.get12DigitDate() + "\n");
 //        writer.print(" Job being crawled: "
@@ -236,7 +233,7 @@ public class ToePool extends ThreadGroup implements Reporter {
 //                }
 //            }
 //        }
-    }      
+//    }      
     
     public void compactReportTo(PrintWriter writer) {
         writer.print(getToeCount() + " threads (" + getActiveToeCount()
@@ -285,7 +282,6 @@ public class ToePool extends ThreadGroup implements Reporter {
         Map<String,Object> data = new LinkedHashMap<String, Object>();
 
         data.put("toeCount", getToeCount());
-        data.put("activeToeCount", getActiveToeCount());
         
         LinkedList<String> unwound = new LinkedList<String>(); 
         for (Entry<?, Long> step: steps.getSortedByCounts()) {
@@ -298,55 +294,62 @@ public class ToePool extends ThreadGroup implements Reporter {
             unwound.add(proc.getValue() + " " + proc.getKey());
         }
         data.put("processors", unwound);
-        data.put("toeThreads", getToeThreadsData());
         
         return data;
     }
-
-    @SuppressWarnings("unchecked")
+    
     @Override
-    public void shortReportLineTo(PrintWriter w) {
-        Map<String, Object> map = shortReportMap();
-        w.print(map.get("toeCount"));
-        w.print(" threads: ");
-        
-        LinkedList<String> sortedSteps = (LinkedList<String>)map.get("steps");
-        {
-        	Iterator<String> iter = sortedSteps.iterator();
-        	if (!iter.hasNext()) {
-        		return;
-        	}
-        	w.print(iter.next());
-        	if (iter.hasNext()) {
-        		w.print(", ");
-        		w.print(iter.next());
-        		if (iter.hasNext()) {
-        			w.print(", etc...");
-        		}
-        	}
-        	w.print("; ");
-        }
-        LinkedList<String> sortedProcesses = (LinkedList<String>)map.get("processors");
-        {
-        	Iterator<String> iter = sortedProcesses.iterator();
-        	if (iter.hasNext()) {
-        		w.print(iter.next());
-        		while (iter.hasNext()) {
-        			w.print(", ");
-        			w.print(iter.next());
-        		}
-        	}
-        }
-
+    public Map<String, Object> reportMap() {
+    	Map<String, Object> data = shortReportMap();
+        data.put("activeToeCount", getActiveToeCount());
+        data.put("toeThreads", getToeThreadsData());
+    	return data;
     }
 
-    /* (non-Javadoc)
-     * @see org.archive.util.Reporter#singleLineLegend()
-     */
-    @Override
-    public String shortReportLegend() {
-        return "total: mostCommonStateTotal secondMostCommonStateTotal";
-    }
+//    @SuppressWarnings("unchecked")
+//    @Override
+//    public void shortReportLineTo(PrintWriter w) {
+//        Map<String, Object> map = shortReportMap();
+//        w.print(map.get("toeCount"));
+//        w.print(" threads: ");
+//        
+//        LinkedList<String> sortedSteps = (LinkedList<String>)map.get("steps");
+//        {
+//        	Iterator<String> iter = sortedSteps.iterator();
+//        	if (!iter.hasNext()) {
+//        		return;
+//        	}
+//        	w.print(iter.next());
+//        	if (iter.hasNext()) {
+//        		w.print(", ");
+//        		w.print(iter.next());
+//        		if (iter.hasNext()) {
+//        			w.print(", etc...");
+//        		}
+//        	}
+//        	w.print("; ");
+//        }
+//        LinkedList<String> sortedProcesses = (LinkedList<String>)map.get("processors");
+//        {
+//        	Iterator<String> iter = sortedProcesses.iterator();
+//        	if (iter.hasNext()) {
+//        		w.print(iter.next());
+//        		while (iter.hasNext()) {
+//        			w.print(", ");
+//        			w.print(iter.next());
+//        		}
+//        	}
+//        }
+//
+//    }
+
+//    /* (non-Javadoc)
+//     * @see org.archive.util.Reporter#singleLineLegend()
+//     */
+//    @Override
+//    public String shortReportLegend() {
+//        return "total: mostCommonStateTotal secondMostCommonStateTotal";
+//    }
 
 
     public void waitForAll() {

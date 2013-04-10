@@ -19,38 +19,19 @@
 
 package org.archive.util;
 
-import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.Map;
 
 public interface Reporter {
-    /**
-     * Make a default report to the passed-in Writer. Should
-     * be equivalent to reportTo(null, writer)
-     * 
-     * @param writer to receive report
-     */
-    public void reportTo(PrintWriter writer) throws IOException;
     
     /**
-     * Write a short single-line summary report 
-     * 
-     * @param writer to receive report
+     * Generates set of key-value pairs for full reporting by templates.
+     * @return a Map, superset of what {@link #shortReportMap()} returns.
      */
-    @Deprecated
-    public void shortReportLineTo(PrintWriter pw) throws IOException;
+    public Map<String, Object> reportMap();
     
-
     /**
      * @return Same data that's in the single line report, as key-value pairs
      */
     public Map<String,Object> shortReportMap();
 
-    
-    /**
-     * Return a legend for the single-line summary report as a String.
-     * 
-     * @return String single-line summary legend
-     */
-    public String shortReportLegend();
 }

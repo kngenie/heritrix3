@@ -97,7 +97,7 @@ import org.archive.spring.OverlayMapsSource;
 import org.archive.util.Base32;
 import org.archive.util.Recorder;
 import org.archive.util.ReportUtils;
-import org.archive.util.Reporter;
+import org.archive.util.TextReporter;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -115,7 +115,7 @@ import org.json.JSONObject;
  * @author Gordon Mohr
  */
 public class CrawlURI 
-implements Reporter, Serializable, OverlayContext {
+implements TextReporter, Serializable, OverlayContext {
     private static final long serialVersionUID = 3L;
 
     private static final Logger logger =
@@ -1451,8 +1451,12 @@ implements Reporter, Serializable, OverlayContext {
         map.put("flattenVia", flattenVia());
         return map;
     }
+    
+    public Map<String, Object> reportMap() {
+    	return shortReportMap();
+    }
 
-    @Override
+    //@Override
     public void shortReportLineTo(PrintWriter w) {
         String className = this.getClass().getName();
         className = className.substring(className.lastIndexOf(".")+1);
@@ -1473,14 +1477,14 @@ implements Reporter, Serializable, OverlayContext {
         return "className uri hopsPath viaUri";
     }
 
-    /* (non-Javadoc)
-     * @see org.archive.util.Reporter#reportTo(java.io.Writer)
-     */
-    @Override
-    public void reportTo(PrintWriter writer) throws IOException {
-        shortReportLineTo(writer);
-        writer.print("\n");
-    }
+//    /* (non-Javadoc)
+//     * @see org.archive.util.Reporter#reportTo(java.io.Writer)
+//     */
+//    @Override
+//    public void reportTo(PrintWriter writer) throws IOException {
+//        shortReportLineTo(writer);
+//        writer.print("\n");
+//    }
 
     
     /**
