@@ -80,18 +80,7 @@ implements Iterable<Processor>,
      * @see org.archive.crawler.framework.Processor#report()
      */
     public void reportTo(PrintWriter writer) {
-        writer.print(
-            getClass().getSimpleName() + " - Processors report - "
-                + ArchiveUtils.get12DigitDate()
-                + "\n");
- 
-        writer.print("  Number of Processors: " + size() + "\n\n");
-
-        for (Processor p: this) {
-            writer.print(p.report());
-            writer.println();
-        }
-        writer.println();
+		// no longer used.
     }
 
     public String shortReportLegend() {
@@ -100,6 +89,7 @@ implements Iterable<Processor>,
 
     public Map<String, Object> shortReportMap() {
         Map<String,Object> data = new LinkedHashMap<String, Object>();
+        data.put("className", getClass().getSimpleName());
         data.put("processorCount", size());
         data.put("processors", getProcessors());
         return data;

@@ -468,6 +468,7 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
         } else {
             map.put("lastDequeueTime", null);
         }
+        // TODO: bug fix: key should be "wakeTime"
         if (wakeTime != 0) {
             map.put("lastDequeueTime", new Date(wakeTime));
         } else {
@@ -479,6 +480,9 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
         map.put("lastPeeked", lastPeeked);
         map.put("lastQueued", lastQueued);
 
+        map.put("substats", substats.shortReportMap());
+        map.put("precedenceProvider", getPrecedenceProvider().shortReportMap());
+
         return map;
     }
 
@@ -486,7 +490,7 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
         return sessionBudget - (totalExpenditure-expenditureAtLastActivation);
     }
 
-    @Override
+//    @Override
     public synchronized void shortReportLineTo(PrintWriter writer) {
         // queue name
         writer.print(classKey);
@@ -534,13 +538,14 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
         writer.print("\n");
     }
 
-    @Override
+//    @Override
     public String shortReportLegend() {
         return "queue precedence currentSize totalEnqueues sessionBalance " +
                 "lastCost (averageCost) lastDequeueTime wakeTime " +
                 "totalSpend/totalBudget errorCount lastPeekUri lastQueuedUri";
     }
     
+    // still used for logging
     public String shortReportLine() {
         return ReportUtils.shortReportLine(this);
     }
@@ -551,44 +556,7 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
      */
     @Override
     public synchronized void reportTo(PrintWriter writer) {
-        // name is ignored: only one kind of report for now
-        writer.print("Queue ");
-        writer.print(classKey);
-        writer.print(" (p");
-        writer.print(getPrecedence());
-        writer.print(")\n");
-        writer.print("  ");
-        writer.print(Long.toString(count));
-        writer.print(" items");
-        if (wakeTime != 0) {
-            writer.print("\n   wakes in: "+ArchiveUtils.formatMillisecondsToConventional(wakeTime - System.currentTimeMillis()));
-        }
-        writer.print("\n    last enqueued: ");
-        writer.print(lastQueued);
-        writer.print("\n      last peeked: ");
-        writer.print(lastPeeked);
-        writer.print("\n");
-        writer.print("   total expended: ");
-        writer.print(Long.toString(totalExpenditure));
-        writer.print(" (total budget: ");
-        writer.print(Long.toString(totalBudget));
-        writer.print(")\n");
-        writer.print("   active balance: ");
-        writer.print(getSessionBalance());
-        writer.print("\n   last(avg) cost: ");
-        writer.print(lastCost);
-        writer.print("(");
-        writer.print(ArchiveUtils.doubleToString(
-                    ((double) totalExpenditure / costCount), 1));
-        writer.print(")\n   ");
-        writer.print(getSubstats().shortReportLegend());
-        writer.print("\n   ");
-        writer.print(getSubstats().shortReportLine());
-        writer.print("\n   ");
-        writer.print(getPrecedenceProvider().shortReportLegend());
-        writer.print("\n   ");
-        writer.print(getPrecedenceProvider().shortReportLine());
-        writer.print("\n\n");
+		// no longer used
     }
     
     public FetchStats getSubstats() {

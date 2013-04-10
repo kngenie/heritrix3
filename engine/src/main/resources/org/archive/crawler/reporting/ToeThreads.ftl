@@ -3,7 +3,7 @@ Toe threads report - ${archiveUtils.get12DigitDate()}
  Job being crawled: ${metadata.jobName}
  Number of toe threads in pool: ${toePool.toeCount} (${toePool.activeToeCount} active)
 <#-- ToePool.getToes() should return stable copy of array -->
-<#list toePool.toeThreads as toe>
+<#list toePool.toeThreadsData as toe>
 [${toe.name}
 <#if toe.currentURI??>
  ${toe.uriClassName?split(".")?last} ${toe.currentURI} ${toe.pathFromSeed} ${toe.via}<#rt>
@@ -21,7 +21,7 @@ Blocked/Waiting On: ${info.lockName} which is owned by ${info.lockOwnerName}(${i
 <#else>
 Blocked/Waiting On: NONE
 </#if>
-<#list toe.stackTrace as ste>
+<#list info.stackTrace as ste>
     ${ste}
 </#list>
 ]

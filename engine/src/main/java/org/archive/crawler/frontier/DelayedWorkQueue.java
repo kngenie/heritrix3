@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
  * 
  * @contributor gojomo
  */
-class DelayedWorkQueue implements Delayed, Serializable {
+public class DelayedWorkQueue implements Delayed, Serializable {
     private static final long serialVersionUID = 1L;
 
     public String classKey;

@@ -19,8 +19,6 @@
 
 package org.archive.crawler.reporting;
 
-import java.io.IOException;
-import java.io.PrintWriter;
 
 /**
  * Frontier summary report showing a limited number of queues of each 
@@ -28,20 +26,10 @@ import java.io.PrintWriter;
  * 
  * @contributor gojomo
  */
-public class FrontierSummaryReport extends Report {
-
-    @Override
-    public void write(PrintWriter writer, StatisticsTracker stats) {
-        if(!stats.controller.getFrontier().isRunning()) {
-            writer.println("frontier unstarted");
-        } else {
-            try {
-                stats.controller.getFrontier().reportTo(writer);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
+public class FrontierSummaryReport extends FreeMarkerReport {
+	public FrontierSummaryReport() {
+		super("FrontierSummary.ftl");
+	}
 
     @Override
     public String getFilename() {

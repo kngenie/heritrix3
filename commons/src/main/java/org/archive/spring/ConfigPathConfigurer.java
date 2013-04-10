@@ -112,6 +112,11 @@ implements
     protected Object fixupPaths(Object bean, String beanName) {
         BeanWrapperImpl wrapper = new BeanWrapperImpl(bean);
         for(PropertyDescriptor d : wrapper.getPropertyDescriptors()) {
+            Class<?> propType = d.getPropertyType();
+            if (propType == null) {
+                // indexed property (ex. getXXX(int i))
+                continue;
+            }
             if (d.getPropertyType().isAssignableFrom(ConfigPath.class)
                     || d.getPropertyType().isAssignableFrom(ConfigFile.class)) {
                 Object value = wrapper.getPropertyValue(d.getName());

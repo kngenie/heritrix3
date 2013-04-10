@@ -26,8 +26,6 @@ import java.util.Map;
 import org.archive.modules.CrawlURI;
 import org.archive.modules.revisit.IdenticalPayloadDigestRevisit;
 import org.archive.modules.revisit.ServerNotModifiedRevisit;
-import org.archive.util.ArchiveUtils;
-import org.archive.util.ReportUtils;
 import org.archive.util.Reporter;
 
 /**
@@ -202,42 +200,38 @@ public class FetchStats implements Serializable, FetchStatusCodes, Reporter {
      */
     @Override // Reporter
     public void reportTo(PrintWriter writer) {
-        writer.println(shortReportLegend());
-        shortReportLineTo(writer);
+//        writer.println(shortReportLegend());
+//        shortReportLineTo(writer);
     }
 
-    @Override
+    //@Override // still used by WorkQueue.reportTo()
     public String shortReportLegend() {
         return "totalScheduled fetchSuccesses fetchFailures fetchDisregards " +
                 "fetchResponses robotsDenials successBytes totalBytes " +
                 "fetchNonResponses lastSuccessTime";
     }
 
-    public String shortReportLine() {
-        return ReportUtils.shortReportLine(this);
-    }
-
     @Override
     public void shortReportLineTo(PrintWriter writer) {
-        writer.print(totalScheduled);
-        writer.print(" ");
-        writer.print(fetchSuccesses);
-        writer.print(" ");
-        writer.print(fetchFailures);
-        writer.print(" "); 
-        writer.print(fetchDisregards);
-        writer.print(" "); 
-        writer.print(fetchResponses);
-        writer.print(" "); 
-        writer.print(robotsDenials);
-        writer.print(" "); 
-        writer.print(successBytes);
-        writer.print(" "); 
-        writer.print(totalBytes);
-        writer.print(" "); 
-        writer.print(fetchNonResponses);
-        writer.print(" "); 
-        writer.print(ArchiveUtils.getLog17Date(lastSuccessTime));
+//        writer.print(totalScheduled);
+//        writer.print(" ");
+//        writer.print(fetchSuccesses);
+//        writer.print(" ");
+//        writer.print(fetchFailures);
+//        writer.print(" ");
+//        writer.print(fetchDisregards);
+//        writer.print(" ");
+//        writer.print(fetchResponses);
+//        writer.print(" ");
+//        writer.print(robotsDenials);
+//        writer.print(" ");
+//        writer.print(successBytes);
+//        writer.print(" ");
+//        writer.print(totalBytes);
+//        writer.print(" ");
+//        writer.print(fetchNonResponses);
+//        writer.print(" ");
+//        writer.print(ArchiveUtils.getLog17Date(lastSuccessTime));
     }
 
     @Override

@@ -18,8 +18,6 @@
  */
 package org.archive.crawler.frontier.precedence;
 
-import java.io.PrintWriter;
-
 import org.archive.crawler.frontier.WorkQueue;
 import org.archive.modules.CrawlURI;
 import org.archive.modules.fetcher.FetchStats.Stage;
@@ -90,30 +88,30 @@ public class HighestUriQueuePrecedencePolicy extends BaseQueuePrecedencePolicy {
             return super.getPrecedence() + delta;
         }
 
-        /*
-         * @see org.archive.crawler.frontier.precedence.PrecedenceProvider#shortReportLegend()()
-         */
-        @Override
-        public String shortReportLegend() {
-            StringBuilder sb = new StringBuilder();
-            sb.append(super.shortReportLegend());
-            sb.append(":");
-            for(Integer p : enqueuedCounts.keySet()) {
-                sb.append(" p");
-                sb.append(p);
-            }
-            return sb.toString(); 
-        }
+//        /*
+//         * @see org.archive.crawler.frontier.precedence.PrecedenceProvider#shortReportLegend()()
+//         */
+//        @Override
+//        public String shortReportLegend() {
+//            StringBuilder sb = new StringBuilder();
+//            sb.append(super.shortReportLegend());
+//            sb.append(":");
+//            for(Integer p : enqueuedCounts.keySet()) {
+//                sb.append(" p");
+//                sb.append(p);
+//            }
+//            return sb.toString();
+//        }
 
-        @Override
-        public void shortReportLineTo(PrintWriter writer) {
-            boolean betwixt = false; 
-            for(Long count : enqueuedCounts.values()) {
-                if(betwixt) writer.print(" ");
-                writer.print(count);
-                betwixt = true;
-            }
-        }
+//        @Override
+//        public void shortReportLineTo(PrintWriter writer) {
+//            boolean betwixt = false;
+//            for(Long count : enqueuedCounts.values()) {
+//                if(betwixt) writer.print(" ");
+//                writer.print(count);
+//                betwixt = true;
+//            }
+//        }
 
     }
 }

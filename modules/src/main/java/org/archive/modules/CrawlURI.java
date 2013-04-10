@@ -1433,13 +1433,13 @@ implements Reporter, Serializable, OverlayContext, Comparable<CrawlURI> {
         return "className uri hopsPath viaUri";
     }
 
-    /* (non-Javadoc)
-     * @see org.archive.util.Reporter#reportTo(java.io.Writer)
-     */
+//    /* (non-Javadoc)
+//     * @see org.archive.util.Reporter#reportTo(java.io.Writer)
+//     */
     @Override
     public void reportTo(PrintWriter writer) throws IOException {
-        shortReportLineTo(writer);
-        writer.print("\n");
+//        shortReportLineTo(writer);
+//        writer.print("\n");
     }
 
     

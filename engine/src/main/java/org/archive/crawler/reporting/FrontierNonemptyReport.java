@@ -19,10 +19,6 @@
  
 package org.archive.crawler.reporting;
 
-import java.io.IOException;
-import java.io.PrintWriter;
-
-import org.archive.crawler.frontier.WorkQueueFrontier;
 
 /**
  * Report of all nonempty Frontier queues (as usually dumped at end of
@@ -30,24 +26,10 @@ import org.archive.crawler.frontier.WorkQueueFrontier;
  * 
  * @contributor gojomo
  */
-public class FrontierNonemptyReport extends Report {
-
-    @Override
-    public void write(PrintWriter writer, StatisticsTracker stats) {
-        if(!stats.controller.getFrontier().isRunning()) {
-            writer.println("frontier unstarted");
-        } else if (stats.controller.getFrontier().isEmpty()) {
-            writer.println("frontier empty");
-        } else if (stats.controller.getFrontier() instanceof WorkQueueFrontier) {
-            ((WorkQueueFrontier)stats.controller.getFrontier()).allNonemptyReportTo(writer);
-        } else {
-            try {
-                stats.controller.getFrontier().reportTo(writer);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
+public class FrontierNonemptyReport extends FreeMarkerReport {
+	public FrontierNonemptyReport() {
+		super("FrontierNonempty.ftl");
+	}
 
     @Override
     public String getFilename() {
