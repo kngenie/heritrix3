@@ -59,7 +59,6 @@ Frontier report - ${archiveUtils.get12DigitDate()}
 <#-- dump inactive queues by precedence -->
 <#assign inactives=frontier.inactiveQueuesDataByPrecedence>
 <#list inactives?keys as k>
-<#-- p${k}: ${inactives[k].size()}${k_has_next?string(";","")}<#rt> -->
 p${k}: ${inactives[k].size()}${k_has_next?string(";","")}<#rt>
 </#list>
 )
@@ -111,7 +110,6 @@ Blocked/Waiting On: <#rt>
         }
 -->
 <#list inactives?keys as prec>
-<#-- TODO: how can we pass the size of each inactiveQueues to template? -->
 <@appendQueueReports label="INACTIVE-p${prec}" queues=inactives[prec].iterator() size=inactives[prec].size() />
 </#list>
  -----===== RETIRED QUEUES =====-----
