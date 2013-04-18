@@ -106,7 +106,6 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
         primaryConfig = cxml; 
         isLaunchInfoPartial = false;
         scanJobLog(); // XXX look at launch directories instead/first? 
-        alertThreadGroup = new AlertThreadGroup(getShortName());
     }
     
     public File getPrimaryConfig() {
@@ -727,7 +726,11 @@ public class CrawlJob implements Comparable<CrawlJob>, ApplicationListener<Appli
     }
 
     public int getAlertCount() {
-        return alertThreadGroup.getAlertCount();
+        if (alertThreadGroup != null) {
+            return alertThreadGroup.getAlertCount();
+        } else {
+            return 0;
+        }
     }
     
     protected StatisticsTracker getStats() {
