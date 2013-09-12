@@ -91,15 +91,7 @@ public class PullingBdbFrontier extends BdbFrontier {
     @Override
     public void requestState(State target) {
         super.requestState(target);
-        // notify state change
         if (target != lastReachedState) {
-            if (targetState == State.RUN) {
-                readyLock.lock();
-                // resume just one thread and it will resume other threads
-                // if more CrawlURIs are available.
-                queueReady.signal();
-                readyLock.unlock();
-            }
             // notify management thread of targetState change.
             snoozeLock.lock();
             snoozeUpdated.signal();
@@ -138,6 +130,14 @@ public class PullingBdbFrontier extends BdbFrontier {
                         targetState = State.EMPTY;
                         sleepms = 0;
                         break;
+                    }
+                    if (targetState != lastReachedState) {
+                    	// resume just one thread waiting for ready-queue
+                    	// and it will resume other threads if more CrawlURIs
+                    	// becomes available (may lead to slow start).
+                    	readyLock.lock();
+                    	queueReady.signal();
+                    	readyLock.unlock();
                     }
                     reachedState(State.RUN);
                     // move queues who finished snoozing to ready queue then sleep until
