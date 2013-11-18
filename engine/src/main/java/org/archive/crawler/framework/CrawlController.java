@@ -319,10 +319,14 @@ implements Serializable,
             CrawlStatus status) {
         if(this.state == newState) {
             // suppress duplicate state-reports
+        	LOGGER.info("ignoring duplicate notification of state " + state);
             return;
         }
+        if (newState == State.PAUSING && state == State.PAUSED) {
+        	LOGGER.warning("updating state from PAUSED to PAUSING - may make it stuck");
+        }
         this.state = newState;
-        LOGGER.fine("reached CrawlController.State " + this.state + ", notifying listeners");
+        LOGGER.info("reached CrawlController.State " + this.state + ", notifying listeners");
         CrawlStateEvent event = new CrawlStateEvent(this,newState,status.getDescription());
         appCtx.publishEvent(event); 
     }
