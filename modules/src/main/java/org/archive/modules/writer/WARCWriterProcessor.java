@@ -100,6 +100,8 @@ import org.archive.uid.RecordIDGenerator;
 import org.archive.uid.UUIDGenerator;
 import org.archive.util.ArchiveUtils;
 import org.archive.util.anvl.ANVLRecord;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 /**
  * WARCWriterProcessor.
@@ -335,7 +337,7 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
                     curi.getContentDigestHistory().put(A_ORIGINAL_DATE, warcRecord.getCreate14DigitDate());
                     curi.getContentDigestHistory().put(A_CONTENT_DIGEST_COUNT, 1);
                 } else if (warcRecord.getType() == WARCRecordType.revisit
-                        && curi.getAnnotations().contains("warcRevisit:uriAgnosticDigest")) {
+                        && curi.getAnnotations().contains("warcRevisit:digest")) {
                      Integer oldCount = (Integer) curi.getContentDigestHistory().get(A_CONTENT_DIGEST_COUNT);
                      if (oldCount == null) {
                          // shouldn't happen, log a warning?
@@ -746,7 +748,7 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
         } finally {
             IOUtils.closeQuietly(ris);
         }
-        curi.getAnnotations().add("warcRevisit:uriAgnosticDigest");
+        curi.getAnnotations().add("warcRevisit:digest");
         
         return recordInfo.getRecordId();
     }
@@ -964,9 +966,49 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
             record.addLabelValue(label, value);
         }
     }
+    
+    @Override
+    protected JSONObject toCheckpointJson() throws JSONException {
+        JSONObject json = super.toCheckpointJson();
+        json.put("urlsWritten", urlsWritten);
+        json.put("stats", stats);
+        return json;
+    }
+    
+    @Override
+    protected void fromCheckpointJson(JSONObject json) throws JSONException {
+        super.fromCheckpointJson(json);
+
+        // conditionals below are for backward compatibility with old checkpoints
+        
+        if (json.has("urlsWritten")) {
+            urlsWritten.set(json.getLong("urlsWritten"));
+        }
+        
+        if (json.has("stats")) {
+            HashMap<String, Map<String, Long>> cpStats = new HashMap<String, Map<String, Long>>();
+            JSONObject jsonStats = json.getJSONObject("stats");
+            if (JSONObject.getNames(jsonStats) != null) {
+                for (String key1: JSONObject.getNames(jsonStats)) {
+                    JSONObject jsonSubstats = jsonStats.getJSONObject(key1);
+                    if (!cpStats.containsKey(key1)) {
+                        cpStats.put(key1, new HashMap<String, Long>());
+                    }
+                    Map<String, Long> substats = cpStats.get(key1);
+
+                    for (String key2: JSONObject.getNames(jsonSubstats)) {
+                        long value = jsonSubstats.getLong(key2);
+                        substats.put(key2, value);
+                    }
+                }
+                addStats(cpStats);
+            }
+        }
+    }
 
     @Override
     public String report() {
+        // XXX note in report that stats include recovered checkpoint?
         logger.info("final stats: " + stats);
         
         StringBuilder buf = new StringBuilder(super.report());
