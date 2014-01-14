@@ -108,7 +108,13 @@ import org.json.JSONObject;
  * attribute list is also available. Use this 'bucket' to carry
  * custom processing extracted data and state across CrawlURI
  * processing.  See the {@link #putString(String, String)},
- * {@link #getString(String)}, etc. 
+ * {@link #getString(String)}, etc.
+ *
+ * <p>
+ * Note: getHttpMethod() has been removed starting with Heritrix 3.3.0. HTTP
+ * response headers are available using {@link #getHttpResponseHeader(String)}.
+ * (HTTP fetchers are responsible for setting the values using
+ * {@link #putHttpResponseHeader(String, String)}).
  *
  * @author Gordon Mohr
  */
@@ -837,9 +843,6 @@ implements Reporter, Serializable, OverlayContext {
 
     /**
      * Return true if this is a http transaction.
-     *
-     * TODO: Compound this and {@link #isPost()} method so that there is one
-     * place to go to find out if get http, post http, ftp, dns.
      *
      * @return True if this is a http transaction.
      */
@@ -1903,6 +1906,7 @@ implements Reporter, Serializable, OverlayContext {
     /**
      * @param key http response header key (case-insensitive)
      * @return value of the header or null if there is no such header
+     * @since 3.3.0
      */
     public String getHttpResponseHeader(String key) {
         @SuppressWarnings("unchecked")
@@ -1913,6 +1917,9 @@ implements Reporter, Serializable, OverlayContext {
         return httpResponseHeaders.get(key.toLowerCase());
     }
 
+    /**
+     * @since 3.3.0
+     */
     public void putHttpResponseHeader(String key, String value) {
         @SuppressWarnings("unchecked")
         Map<String, String> httpResponseHeaders = (Map<String, String>) getData().get(A_HTTP_RESPONSE_HEADERS);
