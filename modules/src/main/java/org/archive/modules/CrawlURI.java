@@ -27,6 +27,7 @@ import static org.archive.modules.CoreAttributeConstants.A_FORCE_RETIRE;
 import static org.archive.modules.CoreAttributeConstants.A_HERITABLE_KEYS;
 import static org.archive.modules.CoreAttributeConstants.A_HTML_BASE;
 import static org.archive.modules.CoreAttributeConstants.A_HTTP_AUTH_CHALLENGES;
+import static org.archive.modules.CoreAttributeConstants.A_HTTP_RESPONSE_HEADERS;
 import static org.archive.modules.CoreAttributeConstants.A_NONFATAL_ERRORS;
 import static org.archive.modules.CoreAttributeConstants.A_PREREQUISITE_URI;
 import static org.archive.modules.CoreAttributeConstants.A_SOURCE_TAG;
@@ -57,6 +58,7 @@ import static org.archive.modules.fetcher.FetchStatusCodes.S_TOO_MANY_LINK_HOPS;
 import static org.archive.modules.fetcher.FetchStatusCodes.S_TOO_MANY_RETRIES;
 import static org.archive.modules.fetcher.FetchStatusCodes.S_UNATTEMPTED;
 import static org.archive.modules.fetcher.FetchStatusCodes.S_UNFETCHABLE_URI;
+import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_FETCH_HISTORY;
 import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_CONTENT_DIGEST_HISTORY;
 
 import java.io.IOException;
@@ -77,11 +79,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.apache.commons.httpclient.HttpMethod;
-import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.URIException;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.lang.StringUtils;
 import org.archive.bdb.AutoKryo;
 import org.archive.modules.credential.Credential;
@@ -236,8 +234,6 @@ implements Reporter, Serializable, OverlayContext {
     /** specified fetch-type: GET, POST, or not-yet-known */ 
     private FetchType fetchType = FetchType.UNKNOWN;
 
-    transient private HttpMethod method = null;
-    
     /** 
      * Monotonically increasing number within a crawl;
      * useful for tending towards breadth-first ordering.
@@ -848,7 +844,7 @@ implements Reporter, Serializable, OverlayContext {
      * @return True if this is a http transaction.
      */
     public boolean isHttpTransaction() {
-        return method != null;
+        return getFetchType().equals(FetchType.HTTP_GET) || getFetchType().equals(FetchType.HTTP_POST);
     }
 
     /**
@@ -871,7 +867,9 @@ implements Reporter, Serializable, OverlayContext {
         extraInfo = null;
         outCandidates = null;
         outLinks = null;
-        method = null;
+        
+        // XXX er uh surprised this wasn't here before?
+        fetchType = FetchType.UNKNOWN;
     }
     
     public Map<String,Object> getPersistentDataMap() {
@@ -932,8 +930,7 @@ implements Reporter, Serializable, OverlayContext {
     public boolean isSuccess() {
         boolean result = false;
         int statusCode = this.fetchStatus;
-        if (statusCode == HttpStatus.SC_UNAUTHORIZED &&
-            hasRfc2617Credential()) {
+        if (statusCode == 401 && hasRfc2617Credential()) {
             result = false;
         } else {
             result = (statusCode > 0);
@@ -1288,23 +1285,8 @@ implements Reporter, Serializable, OverlayContext {
         fetchType = type;
     }
 
-    public void setHttpMethod(HttpMethod method) {
-        this.method = method;
-        if (method instanceof PostMethod) {
-            fetchType = FetchType.HTTP_POST;
-        } else if (method instanceof GetMethod) {
-            fetchType = FetchType.HTTP_GET;
-        } else {
-            fetchType = FetchType.UNKNOWN;
-        }
-    }
-
     public void setForceRetire(boolean b) {
         getData().put(A_FORCE_RETIRE, b);
-    }
-
-    public HttpMethod getHttpMethod() {
-        return method;
     }
 
     public void setBaseURI(UURI base) {
@@ -1827,8 +1809,8 @@ implements Reporter, Serializable, OverlayContext {
     
     
     
-    protected JSONObject extraInfo;  
-     
+    protected JSONObject extraInfo;
+
     public JSONObject getExtraInfo() {
         if (extraInfo == null) {
             extraInfo = new JSONObject();
@@ -1918,6 +1900,29 @@ implements Reporter, Serializable, OverlayContext {
         return getContentType().matches("(?i).*charset=.*");
     }
 
+    /**
+     * @param key http response header key (case-insensitive)
+     * @return value of the header or null if there is no such header
+     */
+    public String getHttpResponseHeader(String key) {
+        @SuppressWarnings("unchecked")
+        Map<String, String> httpResponseHeaders = (Map<String, String>) getData().get(A_HTTP_RESPONSE_HEADERS);
+        if (httpResponseHeaders == null) {
+            return null;
+        }
+        return httpResponseHeaders.get(key.toLowerCase());
+    }
+
+    public void putHttpResponseHeader(String key, String value) {
+        @SuppressWarnings("unchecked")
+        Map<String, String> httpResponseHeaders = (Map<String, String>) getData().get(A_HTTP_RESPONSE_HEADERS);
+        if (httpResponseHeaders == null) {
+            httpResponseHeaders = new HashMap<String, String>();
+            getData().put(A_HTTP_RESPONSE_HEADERS, httpResponseHeaders);
+        }
+        httpResponseHeaders.put(key.toLowerCase(), value);
+    }
+
     @SuppressWarnings("unchecked")
     public Map<String,String> getHttpAuthChallenges() {
         return (Map<String, String>) getData().get(A_HTTP_AUTH_CHALLENGES);
@@ -1926,7 +1931,12 @@ implements Reporter, Serializable, OverlayContext {
     public void setHttpAuthChallenges(Map<String, String> httpAuthChallenges) {
         getData().put(A_HTTP_AUTH_CHALLENGES, httpAuthChallenges);
     }
-
+    
+    @SuppressWarnings("unchecked")
+    public HashMap<String, Object>[] getFetchHistory() {
+        return (HashMap<String,Object>[]) getData().get(A_FETCH_HISTORY);
+    }
+        
     public HashMap<String, Object> getContentDigestHistory() {
         @SuppressWarnings("unchecked")
         HashMap<String, Object> contentDigestHistory = (HashMap<String, Object>) getData().get(A_CONTENT_DIGEST_HISTORY);
@@ -1942,5 +1952,4 @@ implements Reporter, Serializable, OverlayContext {
     public boolean hasContentDigestHistory() {
         return getData().get(A_CONTENT_DIGEST_HISTORY) != null;
     }
-
 }

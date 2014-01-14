@@ -19,39 +19,35 @@
 
 package org.archive.modules.writer;
 
-import static org.archive.io.warc.WARCConstants.FTP_CONTROL_CONVERSATION_MIMETYPE;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_CONCURRENT_TO;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_ETAG;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_IP;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_LAST_MODIFIED;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_PAYLOAD_DIGEST;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_PROFILE;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_REFERS_TO;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_REFERS_TO_DATE;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_REFERS_TO_FILENAME;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_REFERS_TO_FILE_OFFSET;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_REFERS_TO_TARGET_URI;
-import static org.archive.io.warc.WARCConstants.HEADER_KEY_TRUNCATED;
-import static org.archive.io.warc.WARCConstants.HTTP_REQUEST_MIMETYPE;
-import static org.archive.io.warc.WARCConstants.HTTP_RESPONSE_MIMETYPE;
-import static org.archive.io.warc.WARCConstants.NAMED_FIELD_TRUNCATED_VALUE_HEAD;
-import static org.archive.io.warc.WARCConstants.NAMED_FIELD_TRUNCATED_VALUE_LENGTH;
-import static org.archive.io.warc.WARCConstants.NAMED_FIELD_TRUNCATED_VALUE_TIME;
-import static org.archive.io.warc.WARCConstants.PROFILE_REVISIT_IDENTICAL_DIGEST;
-import static org.archive.io.warc.WARCConstants.PROFILE_REVISIT_NOT_MODIFIED;
-import static org.archive.io.warc.WARCConstants.PROFILE_REVISIT_URI_AGNOSTIC_IDENTICAL_DIGEST;
-import static org.archive.io.warc.WARCConstants.TYPE;
+import static org.archive.format.warc.WARCConstants.FTP_CONTROL_CONVERSATION_MIMETYPE;
+import static org.archive.format.warc.WARCConstants.HEADER_KEY_CONCURRENT_TO;
+import static org.archive.format.warc.WARCConstants.HEADER_KEY_ETAG;
+import static org.archive.format.warc.WARCConstants.HEADER_KEY_IP;
+import static org.archive.format.warc.WARCConstants.HEADER_KEY_LAST_MODIFIED;
+import static org.archive.format.warc.WARCConstants.HEADER_KEY_PAYLOAD_DIGEST;
+import static org.archive.format.warc.WARCConstants.HEADER_KEY_PROFILE;
+import static org.archive.format.warc.WARCConstants.HEADER_KEY_REFERS_TO;
+import static org.archive.format.warc.WARCConstants.HEADER_KEY_REFERS_TO_DATE;
+import static org.archive.format.warc.WARCConstants.HEADER_KEY_REFERS_TO_TARGET_URI;
+import static org.archive.format.warc.WARCConstants.HEADER_KEY_TRUNCATED;
+import static org.archive.format.warc.WARCConstants.HTTP_REQUEST_MIMETYPE;
+import static org.archive.format.warc.WARCConstants.HTTP_RESPONSE_MIMETYPE;
+import static org.archive.format.warc.WARCConstants.NAMED_FIELD_TRUNCATED_VALUE_HEAD;
+import static org.archive.format.warc.WARCConstants.NAMED_FIELD_TRUNCATED_VALUE_LENGTH;
+import static org.archive.format.warc.WARCConstants.NAMED_FIELD_TRUNCATED_VALUE_TIME;
+import static org.archive.format.warc.WARCConstants.PROFILE_REVISIT_IDENTICAL_DIGEST;
+import static org.archive.format.warc.WARCConstants.PROFILE_REVISIT_NOT_MODIFIED;
+import static org.archive.format.warc.WARCConstants.TYPE;
 import static org.archive.modules.CoreAttributeConstants.A_DNS_SERVER_IP_LABEL;
 import static org.archive.modules.CoreAttributeConstants.A_FTP_CONTROL_CONVERSATION;
 import static org.archive.modules.CoreAttributeConstants.A_FTP_FETCH_STATUS;
 import static org.archive.modules.CoreAttributeConstants.A_SOURCE_TAG;
+import static org.archive.modules.CoreAttributeConstants.A_WARC_RESPONSE_HEADERS;
 import static org.archive.modules.CoreAttributeConstants.HEADER_TRUNC;
 import static org.archive.modules.CoreAttributeConstants.LENGTH_TRUNC;
 import static org.archive.modules.CoreAttributeConstants.TIMER_TRUNC;
-import static org.archive.modules.CoreAttributeConstants.A_WARC_RESPONSE_HEADERS;
 import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_CONTENT_DIGEST_COUNT;
 import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_ETAG_HEADER;
-import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_FETCH_HISTORY;
 import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_LAST_MODIFIED_HEADER;
 import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_ORIGINAL_DATE;
 import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_ORIGINAL_URL;
@@ -78,13 +74,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.apache.commons.httpclient.Header;
-import org.apache.commons.httpclient.HttpMethod;
 import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
-import org.archive.io.ReplayInputStream;
 import org.archive.format.warc.WARCConstants.WARCRecordType;
+import org.archive.io.ReplayInputStream;
 import org.archive.io.warc.WARCRecordInfo;
 import org.archive.io.warc.WARCWriter;
 import org.archive.io.warc.WARCWriterPool;
@@ -317,8 +311,7 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
         curi.addExtraInfo("warcFileOffset", startPosition);
 
         // history for uri-based dedupe
-        @SuppressWarnings("unchecked")
-        Map<String,Object>[] history = (Map<String,Object>[])curi.getData().get(A_FETCH_HISTORY);
+        Map<String,Object>[] history = curi.getFetchHistory();
         if (history != null && history[0] != null) {
             history[0].put(A_WRITE_TAG, writer.getFilenameWithoutOccupiedSuffix());
         }
@@ -716,7 +709,7 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
         recordInfo.setContentLength(revisedLength);
         
         headers.addLabelValue(
-                HEADER_KEY_PROFILE, PROFILE_REVISIT_URI_AGNOSTIC_IDENTICAL_DIGEST);
+                HEADER_KEY_PROFILE, PROFILE_REVISIT_IDENTICAL_DIGEST);
         headers.addLabelValue(
                 HEADER_KEY_TRUNCATED, NAMED_FIELD_TRUNCATED_VALUE_LENGTH);
         
@@ -732,10 +725,6 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
                 curi.getContentDigestHistory().get(A_ORIGINAL_URL).toString());
         headers.addLabelValue(HEADER_KEY_REFERS_TO_DATE, 
                 curi.getContentDigestHistory().get(A_ORIGINAL_DATE).toString());
-        headers.addLabelValue(HEADER_KEY_REFERS_TO_FILENAME, 
-                curi.getContentDigestHistory().get(A_WARC_FILENAME).toString());
-        headers.addLabelValue(HEADER_KEY_REFERS_TO_FILE_OFFSET, 
-                curi.getContentDigestHistory().get(A_WARC_FILE_OFFSET).toString());
 
         recordInfo.setExtraHeaders(headers);
         
@@ -775,10 +764,8 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
         recordInfo.setExtraHeaders(namedFields);
         
         if(curi.isHttpTransaction()) {
-            HttpMethod method = curi.getHttpMethod();
-            saveHeader(A_ETAG_HEADER,method,namedFields,HEADER_KEY_ETAG);
-            saveHeader(A_LAST_MODIFIED_HEADER,method,namedFields,
-            		HEADER_KEY_LAST_MODIFIED);
+            saveHeader(curi, namedFields, A_ETAG_HEADER, HEADER_KEY_ETAG);
+            saveHeader(curi, namedFields, A_LAST_MODIFIED_HEADER, HEADER_KEY_LAST_MODIFIED);
         }
         // truncate to zero-length (all necessary info is above)
         namedFields.addLabelValue(HEADER_KEY_TRUNCATED,
@@ -797,17 +784,14 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
     }
     
     /**
-     * Save a header from the given HTTP operation into the 
+     * Saves a header from the given HTTP operation into the 
      * provider headers under a new name
-     * 
-     * @param origName header name to get if present
-     * @param method http operation containing headers
      */
-    protected void saveHeader(String origName, HttpMethod method, 
-    		ANVLRecord headers, String newName) {
-        Header header = method.getResponseHeader(origName);
-        if(header!=null) {
-            headers.addLabelValue(newName, header.getValue());
+    protected void saveHeader(CrawlURI curi, ANVLRecord warcHeaders,
+            String origName, String newName) {
+        String value = curi.getHttpResponseHeader(origName);
+        if (value != null) {
+            warcHeaders.addLabelValue(newName, value);
         }
     }
 
