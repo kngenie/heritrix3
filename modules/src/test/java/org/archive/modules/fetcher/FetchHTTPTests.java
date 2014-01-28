@@ -142,7 +142,9 @@ public class FetchHTTPTests extends ProcessorTestBase {
         assertEquals(Charset.forName("US-ASCII"), curi.getRecorder().getCharset());
         assertTrue(curi.getCredentials().isEmpty());
         assertTrue(curi.getFetchDuration() >= 0);
-        assertTrue(curi.getFetchStatus() == 200);
+        if (!exclusions.contains("fetchStatus")) {
+            assertTrue(curi.getFetchStatus() == 200);
+        }
         assertTrue(curi.getFetchType() == FetchType.HTTP_GET);
         
         // check message body, i.e. "raw, possibly chunked-transfer-encoded message contents not including the leading headers"
@@ -320,6 +322,13 @@ public class FetchHTTPTests extends ProcessorTestBase {
         assertTrue(httpRequestString.contains("Authorization: Digest"));
         // otherwise should be a normal 200 response
         runDefaultChecks(curi, "requestLine", "hostHeader");
+    }
+    
+    public void test401NoChallenge() throws URIException, IOException, InterruptedException {
+        CrawlURI curi = makeCrawlURI("http://localhost:7777/401-no-challenge");
+        fetcher().process(curi);
+        assertEquals(401, curi.getFetchStatus());
+        runDefaultChecks(curi, "requestLine", "fetchStatus");
     }
     
     protected void checkSetCookieURI() throws URIException, IOException,
@@ -752,6 +761,18 @@ public class FetchHTTPTests extends ProcessorTestBase {
         fetcher().process(curi);
         // logger.info('\n' + httpRequestString(curi) + "\n\n" + rawResponseString(curi));
         assertTrue(httpRequestString(curi).startsWith("GET /??blahblah HTTP/1.0\r\n"));
+        runDefaultChecks(curi, "requestLine");
+    }
+    
+    public void testUrlWithSpaces() throws Exception {
+        CrawlURI curi = makeCrawlURI("http://localhost:7777/url with spaces");
+        fetcher().process(curi);
+        assertTrue(httpRequestString(curi).startsWith("GET /url%20with%20spaces HTTP/1.0\r\n"));
+        runDefaultChecks(curi, "requestLine");
+
+        curi = makeCrawlURI("http://localhost:7777/url%20with%20spaces");
+        fetcher().process(curi);
+        assertTrue(httpRequestString(curi).startsWith("GET /url%20with%20spaces HTTP/1.0\r\n"));
         runDefaultChecks(curi, "requestLine");
     }
 
