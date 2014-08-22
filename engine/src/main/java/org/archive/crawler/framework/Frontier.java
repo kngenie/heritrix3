@@ -28,7 +28,7 @@ import org.archive.modules.CrawlURI;
 import org.archive.modules.deciderules.DecideRule;
 import org.archive.modules.fetcher.FetchStats;
 import org.archive.util.IdentityCacheable;
-import org.archive.util.Reporter;
+import org.archive.util.TemplateReporter;
 import org.json.JSONException;
 import org.springframework.context.Lifecycle;
 
@@ -101,7 +101,7 @@ import org.springframework.context.Lifecycle;
  * @see org.archive.crawler.framework.ToeThread
  * @see org.archive.crawler.settings.ModuleType
  */
-public interface Frontier extends Lifecycle, Reporter {
+public interface Frontier extends Lifecycle, TemplateReporter {
 
     /**
      * Get the next URI that should be processed. If no URI becomes availible

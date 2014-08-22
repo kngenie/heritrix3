@@ -27,6 +27,7 @@ import static org.archive.modules.CoreAttributeConstants.A_FORCE_RETIRE;
 import static org.archive.modules.CoreAttributeConstants.A_HERITABLE_KEYS;
 import static org.archive.modules.CoreAttributeConstants.A_HTML_BASE;
 import static org.archive.modules.CoreAttributeConstants.A_HTTP_AUTH_CHALLENGES;
+import static org.archive.modules.CoreAttributeConstants.A_HTTP_RESPONSE_HEADERS;
 import static org.archive.modules.CoreAttributeConstants.A_NONFATAL_ERRORS;
 import static org.archive.modules.CoreAttributeConstants.A_PREREQUISITE_URI;
 import static org.archive.modules.CoreAttributeConstants.A_SOURCE_TAG;
@@ -58,12 +59,14 @@ import static org.archive.modules.fetcher.FetchStatusCodes.S_TOO_MANY_RETRIES;
 import static org.archive.modules.fetcher.FetchStatusCodes.S_UNATTEMPTED;
 import static org.archive.modules.fetcher.FetchStatusCodes.S_UNFETCHABLE_URI;
 import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_CONTENT_DIGEST_HISTORY;
+import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_FETCH_HISTORY;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
 import java.io.Serializable;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -77,27 +80,22 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.apache.commons.httpclient.HttpMethod;
-import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.URIException;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.lang.StringUtils;
 import org.archive.bdb.AutoKryo;
 import org.archive.modules.credential.Credential;
 import org.archive.modules.credential.HttpAuthenticationCredential;
 import org.archive.modules.extractor.HTMLLinkContext;
 import org.archive.modules.extractor.Hop;
-import org.archive.modules.extractor.Link;
 import org.archive.modules.extractor.LinkContext;
+import org.archive.modules.revisit.RevisitProfile;
 import org.archive.net.UURI;
 import org.archive.net.UURIFactory;
 import org.archive.spring.OverlayContext;
 import org.archive.spring.OverlayMapsSource;
 import org.archive.util.Base32;
 import org.archive.util.Recorder;
-import org.archive.util.ReportUtils;
-import org.archive.util.TextReporter;
+import org.archive.util.TemplateReporter;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -110,13 +108,19 @@ import org.json.JSONObject;
  * attribute list is also available. Use this 'bucket' to carry
  * custom processing extracted data and state across CrawlURI
  * processing.  See the {@link #putString(String, String)},
- * {@link #getString(String)}, etc. 
+ * {@link #getString(String)}, etc.
+ *
+ * <p>
+ * Note: getHttpMethod() has been removed starting with Heritrix 3.3.0. HTTP
+ * response headers are available using {@link #getHttpResponseHeader(String)}.
+ * (HTTP fetchers are responsible for setting the values using
+ * {@link #putHttpResponseHeader(String, String)}).
  *
  * @author Gordon Mohr
  */
 public class CrawlURI 
-implements TextReporter, Serializable, OverlayContext {
-    private static final long serialVersionUID = 3L;
+implements TemplateReporter, Serializable, OverlayContext, Comparable<CrawlURI> {
+    private static final long serialVersionUID = 4L;
 
     private static final Logger logger =
         Logger.getLogger(CrawlURI.class.getName());
@@ -236,8 +240,6 @@ implements TextReporter, Serializable, OverlayContext {
     /** specified fetch-type: GET, POST, or not-yet-known */ 
     private FetchType fetchType = FetchType.UNKNOWN;
 
-    transient private HttpMethod method = null;
-    
     /** 
      * Monotonically increasing number within a crawl;
      * useful for tending towards breadth-first ordering.
@@ -254,7 +256,7 @@ implements TextReporter, Serializable, OverlayContext {
      */
     private static final Collection<String> persistentKeys
      = new CopyOnWriteArrayList<String>(
-            new String [] {A_CREDENTIALS_KEY, A_HTTP_AUTH_CHALLENGES, A_SUBMIT_DATA, A_WARC_RESPONSE_HEADERS});
+            new String [] {A_CREDENTIALS_KEY, A_HTTP_AUTH_CHALLENGES, A_SUBMIT_DATA, A_WARC_RESPONSE_HEADERS, A_ANNOTATIONS});
 
     /** maximum length for pathFromSeed/hopsPath; longer truncated with leading counter **/ 
     private static final int MAX_HOPS_DISPLAYED = 50;
@@ -266,6 +268,12 @@ implements TextReporter, Serializable, OverlayContext {
     private byte[] contentDigest = null;
     private String contentDigestScheme = null;
 
+    
+    /**
+     * If this value is non-null, a determination has been made that this CrawlURI instance is a revisit or 
+     * recrawl. Details are provided by the RevisitProfile object. 
+     */
+    transient private RevisitProfile revisitProfile = null;
 
     /**
      * Create a new instance of CrawlURI from a {@link UURI}.
@@ -274,6 +282,7 @@ implements TextReporter, Serializable, OverlayContext {
      */
     public CrawlURI(UURI uuri) {
         this.uuri = uuri;
+        this.pathFromSeed = "";
     }
 
     public static CrawlURI fromHopsViaString(String uriHopsViaContext) throws URIException {
@@ -300,7 +309,11 @@ implements TextReporter, Serializable, OverlayContext {
     public CrawlURI(UURI u, String pathFromSeed, UURI via,
             LinkContext viaContext) {
         this.uuri = u;
-        this.pathFromSeed = pathFromSeed;
+        if (pathFromSeed != null) {
+            this.pathFromSeed = pathFromSeed;
+        } else {
+            this.pathFromSeed = "";
+        }
         this.via = via;
         this.viaContext = viaContext;
     }
@@ -842,13 +855,10 @@ implements TextReporter, Serializable, OverlayContext {
     /**
      * Return true if this is a http transaction.
      *
-     * TODO: Compound this and {@link #isPost()} method so that there is one
-     * place to go to find out if get http, post http, ftp, dns.
-     *
      * @return True if this is a http transaction.
      */
     public boolean isHttpTransaction() {
-        return method != null;
+        return getFetchType().equals(FetchType.HTTP_GET) || getFetchType().equals(FetchType.HTTP_POST);
     }
 
     /**
@@ -869,9 +879,12 @@ implements TextReporter, Serializable, OverlayContext {
         this.data = getPersistentDataMap();
         
         extraInfo = null;
-        outCandidates = null;
         outLinks = null;
-        method = null;
+        
+        this.revisitProfile = null;
+        
+        // XXX er uh surprised this wasn't here before?
+        fetchType = FetchType.UNKNOWN;
     }
     
     public Map<String,Object> getPersistentDataMap() {
@@ -932,8 +945,7 @@ implements TextReporter, Serializable, OverlayContext {
     public boolean isSuccess() {
         boolean result = false;
         int statusCode = this.fetchStatus;
-        if (statusCode == HttpStatus.SC_UNAUTHORIZED &&
-            hasRfc2617Credential()) {
+        if (statusCode == 401 && hasRfc2617Credential()) {
             result = false;
         } else {
             result = (statusCode > 0);
@@ -1080,38 +1092,25 @@ implements TextReporter, Serializable, OverlayContext {
     }
 
     /** 
-     * All discovered outbound Links (navlinks, embeds, etc.) 
-     * Can either contain Link instances or CrawlURI instances, or both.
-     * The LinksScoper processor converts Link instances in this collection
-     * to CrawlURI instances. 
+     * All discovered outbound urls as CrawlURIs (navlinks, embeds, etc.) 
      */
-    protected transient Collection<Link> outLinks = new LinkedHashSet<Link>();
-    
-    protected transient Collection<CrawlURI> outCandidates = new LinkedHashSet<CrawlURI>();
+    protected transient Collection<CrawlURI> outLinks;
     
     /**
      * Returns discovered links.  The returned collection might be empty if
      * no links were discovered, or if something like LinksScoper promoted
      * the links to CrawlURIs.
      * 
-     * @return Collection of all discovered outbound Links
+     * @return Collection of all discovered outbound links
      */
-    public Collection<Link> getOutLinks() {
+    public Collection<CrawlURI> getOutLinks() {
+    	if (outLinks==null) {
+    		outLinks = new LinkedHashSet<CrawlURI>();
+    	}
         return outLinks;
-//        return Transform.subclasses(outLinks, Link.class);
     }
     
-    /**
-     * Returns discovered candidate URIs.  The returned collection will be
-     * emtpy until something like LinksScoper promotes discovered Links
-     * into CrawlURIs.
-     * 
-     * @return  Collection of candidate URIs
-     */
-    public Collection<CrawlURI> getOutCandidates() {
-        return outCandidates;
-    }
-    
+   
     /**
      * Set the (HTML) Base URI used for derelativizing internal URIs. 
      * 
@@ -1178,8 +1177,6 @@ implements TextReporter, Serializable, OverlayContext {
         @SuppressWarnings("unchecked")
         Map<String,Object> temp = (Map<String,Object>)stream.readObject();
         this.data = temp;
-        outLinks = new HashSet<Link>();
-        outCandidates = new HashSet<CrawlURI>();
     }
 
     /**
@@ -1288,23 +1285,8 @@ implements TextReporter, Serializable, OverlayContext {
         fetchType = type;
     }
 
-    public void setHttpMethod(HttpMethod method) {
-        this.method = method;
-        if (method instanceof PostMethod) {
-            fetchType = FetchType.HTTP_POST;
-        } else if (method instanceof GetMethod) {
-            fetchType = FetchType.HTTP_GET;
-        } else {
-            fetchType = FetchType.UNKNOWN;
-        }
-    }
-
     public void setForceRetire(boolean b) {
         getData().put(A_FORCE_RETIRE, b);
-    }
-
-    public HttpMethod getHttpMethod() {
-        return method;
     }
 
     public void setBaseURI(UURI base) {
@@ -1412,37 +1394,21 @@ implements TextReporter, Serializable, OverlayContext {
     }
 
     
-//    public void setStateProvider(SheetManager manager) {
-//        if(this.provider!=null) {
-//            return;
-//        }
-//        this.manager = manager;
-////        this.provider = manager.findConfig(SURT.fromURI(toString()));
-//    }
-//    
-//    
-//    public StateProvider getStateProvider() {
-//        return provider;
-//    }
-
-    
-//    public <T> T get(Object module, Key<T> key) {
-//        if (provider == null) {
-//            throw new AssertionError("ToeThread never set up CrawlURI's sheet.");
-//        }
-//        return provider.get(module, key);
-//    }
-
-
     //
     // Reporter implementation
     //
 
+    // used for logging
     public String shortReportLine() {
-        return ReportUtils.shortReportLine(this);
+        //return ReportUtils.shortReportLine(this);
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        shortReportLineTo(pw);
+        pw.flush();
+        return sw.toString();
     }
     
-    @Override
+    //@Override
     public Map<String, Object> shortReportMap() {
         Map<String,Object> map = new LinkedHashMap<String, Object>();
         map.put("class", getClass().getName());
@@ -1452,6 +1418,7 @@ implements TextReporter, Serializable, OverlayContext {
         return map;
     }
     
+    @Override
     public Map<String, Object> reportMap() {
     	return shortReportMap();
     }
@@ -1469,13 +1436,13 @@ implements TextReporter, Serializable, OverlayContext {
         w.print(flattenVia());
     }
 
-    /* (non-Javadoc)
-     * @see org.archive.util.Reporter#singleLineLegend()
-     */
-    @Override
-    public String shortReportLegend() {
-        return "className uri hopsPath viaUri";
-    }
+//    /* (non-Javadoc)
+//     * @see org.archive.util.Reporter#singleLineLegend()
+//     */
+//    @Override
+//    public String shortReportLegend() {
+//        return "className uri hopsPath viaUri";
+//    }
 
 //    /* (non-Javadoc)
 //     * @see org.archive.util.Reporter#reportTo(java.io.Writer)
@@ -1636,22 +1603,30 @@ implements TextReporter, Serializable, OverlayContext {
     }
     
     /**
-     * Utility method for creation of CandidateURIs found extracting
-     * links from this CrawlURI.
-     * @param baseUURI BaseUURI for <code>link</code>.
-     * @param link Link to wrap CandidateURI in.
-     * @return New candidateURI wrapper around <code>link</code>.
+     * Utility method for creating CrawlURIs that were found as out links from the current CrawlURI
+     * links from this CrawlURI. 
+     * <p>
+     * Any relative URIs will be treated as relative to this CrawlURI's UURI.
+	 * @param destination The new URI, possibly a relative URI
+	 * @param context
+	 * @param hop 
+     * @return New CrawlURI with the current CrawlURI set as the one it inherits from
      * @throws URIException
      */
-    public CrawlURI createCrawlURI(UURI baseUURI, Link link)
-    throws URIException {
-        UURI u = (link.getDestination() instanceof UURI)?
-            (UURI)link.getDestination():
-            UURIFactory.getInstance(baseUURI,
-                link.getDestination().toString());
-        CrawlURI newCaURI = new CrawlURI(u, 
-                extendHopsPath(getPathFromSeed(),link.getHopType().getHopChar()),
-                getUURI(), link.getContext());
+    public CrawlURI createCrawlURI(UURI destination, LinkContext context, Hop hop)
+    			throws URIException {
+        return createCrawlURI(destination.toString(), context, hop);
+    }
+
+    public CrawlURI createCrawlURI(String destination, LinkContext context, Hop hop) 
+    		throws URIException {
+        UURI u = UURIFactory.getInstance(this.getBaseURI(), destination);
+        CrawlURI newCaURI = new CrawlURI(
+        		u, 
+                extendHopsPath(getPathFromSeed(), 
+                		hop.getHopChar()),
+                this.getUURI(), 
+                context);
         newCaURI.inheritFrom(this);
         return newCaURI;
     }
@@ -1676,19 +1651,19 @@ implements TextReporter, Serializable, OverlayContext {
     }
 
     /**
-     * Utility method for creation of CandidateURIs found extracting
+     * Utility method for creation of CrawlURIs found extracting
      * links from this CrawlURI.
      * @param baseUURI BaseUURI for <code>link</code>.
-     * @param link Link to wrap CandidateURI in.
+     * TODO: Fix JavaDoc
      * @param scheduling How new CandidateURI should be scheduled.
      * @param seed True if this CandidateURI is a seed.
      * @return New candidateURI wrapper around <code>link</code>.
      * @throws URIException
      */
-    public CrawlURI createCrawlURI(UURI baseUURI, Link link,
+    public CrawlURI createCrawlURI(UURI destination, LinkContext context, Hop hop,
         int scheduling, boolean seed)
     throws URIException {
-        final CrawlURI caURI = createCrawlURI(baseUURI, link);
+        final CrawlURI caURI = createCrawlURI(destination, context, hop);
         caURI.setSchedulingDirective(scheduling);
         caURI.setSeed(seed);
         return caURI;
@@ -1828,8 +1803,8 @@ implements TextReporter, Serializable, OverlayContext {
     
     
     
-    protected JSONObject extraInfo;  
-     
+    protected JSONObject extraInfo;
+
     public JSONObject getExtraInfo() {
         if (extraInfo == null) {
             extraInfo = new JSONObject();
@@ -1878,7 +1853,7 @@ implements TextReporter, Serializable, OverlayContext {
      */
     public CrawlURI markPrerequisite(String preq) 
     throws URIException {
-        CrawlURI caUri = makeConsequentCandidate(preq, LinkContext.PREREQ_MISC, Hop.PREREQ);
+        CrawlURI caUri = createCrawlURI(preq, LinkContext.PREREQ_MISC, Hop.PREREQ);
         caUri.setPrerequisite(true);
         // TODO: consider moving some of this to configurable candidate-handling
         int prereqPriority = getSchedulingDirective() - 1;
@@ -1895,28 +1870,36 @@ implements TextReporter, Serializable, OverlayContext {
         return caUri;
     }
     
-    /**
-     * Create a consequent CrawlURI from this one, given the 
-     * additional parameters
-     *
-     * @param destination URI string
-     * @param lc LinkContext
-     * @param hop Hop 
-     * @return the newly created prerequisite CrawlURI
-     * @throws URIException
-     */
-    public CrawlURI makeConsequentCandidate(String destination, LinkContext lc, Hop hop) 
-    throws URIException {
-        UURI src = getUURI();
-        UURI dest = UURIFactory.getInstance(getBaseURI(),destination);
-        Link link = new Link(src, dest, lc, hop);
-        CrawlURI caUri = createCrawlURI(getBaseURI(), link);
-        return caUri;
-    }
-
     public boolean containsContentTypeCharsetDeclaration() {
         // TODO can this regex be improved? should the test consider if its legal? 
         return getContentType().matches("(?i).*charset=.*");
+    }
+
+    /**
+     * @param key http response header key (case-insensitive)
+     * @return value of the header or null if there is no such header
+     * @since 3.3.0
+     */
+    public String getHttpResponseHeader(String key) {
+        @SuppressWarnings("unchecked")
+        Map<String, String> httpResponseHeaders = (Map<String, String>) getData().get(A_HTTP_RESPONSE_HEADERS);
+        if (httpResponseHeaders == null) {
+            return null;
+        }
+        return httpResponseHeaders.get(key.toLowerCase());
+    }
+
+    /**
+     * @since 3.3.0
+     */
+    public void putHttpResponseHeader(String key, String value) {
+        @SuppressWarnings("unchecked")
+        Map<String, String> httpResponseHeaders = (Map<String, String>) getData().get(A_HTTP_RESPONSE_HEADERS);
+        if (httpResponseHeaders == null) {
+            httpResponseHeaders = new HashMap<String, String>();
+            getData().put(A_HTTP_RESPONSE_HEADERS, httpResponseHeaders);
+        }
+        httpResponseHeaders.put(key.toLowerCase(), value);
     }
 
     @SuppressWarnings("unchecked")
@@ -1927,7 +1910,12 @@ implements TextReporter, Serializable, OverlayContext {
     public void setHttpAuthChallenges(Map<String, String> httpAuthChallenges) {
         getData().put(A_HTTP_AUTH_CHALLENGES, httpAuthChallenges);
     }
-
+    
+    @SuppressWarnings("unchecked")
+    public HashMap<String, Object>[] getFetchHistory() {
+        return (HashMap<String,Object>[]) getData().get(A_FETCH_HISTORY);
+    }
+        
     public HashMap<String, Object> getContentDigestHistory() {
         @SuppressWarnings("unchecked")
         HashMap<String, Object> contentDigestHistory = (HashMap<String, Object>) getData().get(A_CONTENT_DIGEST_HISTORY);
@@ -1943,5 +1931,80 @@ implements TextReporter, Serializable, OverlayContext {
     public boolean hasContentDigestHistory() {
         return getData().get(A_CONTENT_DIGEST_HISTORY) != null;
     }
+    
+    /**
+     * Indicates if this CrawlURI object has been deemed a revisit.
+     * @return 
+     */
+    public boolean isRevisit() {
+    	return revisitProfile!=null;
+    }
 
+	public RevisitProfile getRevisitProfile() {
+		return revisitProfile;
+	}
+
+	public void setRevisitProfile(RevisitProfile revisitProfile) {
+		this.revisitProfile = revisitProfile;
+	}
+    
+
+    // brought over from old Link class
+    @Override
+    public int compareTo(CrawlURI o) {
+        int cmp = compare(via.toString(), o.via.toString());
+        if (cmp == 0) {
+            cmp = compare(uuri.toString(), o.uuri.toString());
+        }
+        if (cmp == 0) {
+            cmp = compare(viaContext.toString(), o.viaContext.toString());
+        }
+        if (cmp == 0) {
+            cmp = compare(pathFromSeed, o.pathFromSeed);
+        }
+        return cmp;
+    }
+
+    // brought over from old Link class
+    @Override
+    public int hashCode() {
+        int r = 37;
+        return r ^ hash(via.toString()) ^ hash(uuri.toString())
+                ^ hash(viaContext.toString()) ^ hash(pathFromSeed.toString());
+    }
+
+    // handles nulls
+    private static int hash(String a) {
+        return a == null ? 0 : a.hashCode();
+    }
+
+    // handles nulls
+    private static boolean equals(Object a, Object b) {
+        return a == null ? b == null : a.equals(b);
+    }
+
+    // handles nulls
+    private static int compare(String a, String b) {
+        if (a == null && b == null) {
+            return 0;
+        } else if (a == null && b != null) {
+            return -1;
+        } else if (a != null && b == null) {
+            return 1;
+        } else {
+            return a.compareTo(b);
+        }
+    }
+
+    // brought over from old Link class
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof CrawlURI)) {
+            return false;
+        }
+        CrawlURI u = (CrawlURI) o;
+        return equals(via, u.via) && equals(uuri, u.uuri)
+                && equals(viaContext, u.viaContext)
+                && equals(pathFromSeed, u.pathFromSeed);
+    }
 }

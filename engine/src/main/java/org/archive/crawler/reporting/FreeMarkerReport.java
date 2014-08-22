@@ -10,6 +10,7 @@ import java.util.Map;
 import org.archive.crawler.framework.CrawlController;
 import org.archive.util.ArchiveUtils;
 import org.archive.util.Reporter;
+import org.archive.util.TemplateReporter;
 
 import freemarker.ext.beans.BeansWrapper;
 import freemarker.template.Configuration;
@@ -43,8 +44,8 @@ public abstract class FreeMarkerReport extends Report {
 		private Map<String, Object> reportMap = null;
 		public ReportModel(Object target) {
 			this.target = target;
-			if (this.target instanceof Reporter) {
-				this.reportMap = ((Reporter)this.target).reportMap();
+			if (this.target instanceof TemplateReporter) {
+				this.reportMap = ((TemplateReporter)this.target).reportMap();
 			} else if (this.target instanceof CrawlController) {
 				this.reportMap = new HashMap<String, Object>();
 			}
@@ -67,7 +68,7 @@ public abstract class FreeMarkerReport extends Report {
 			Method m = findGetter(key);
 			if (m == null) return null;
 			Object obj = m.invoke(target, new Object[0]);
-			if (obj instanceof Reporter) {
+			if (obj instanceof TemplateReporter) {
 				obj = new ReportModel(obj);
 				reportMap.put(key,  obj);
 			}

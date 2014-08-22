@@ -22,10 +22,10 @@ import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import org.apache.commons.httpclient.HttpStatus;
 import org.archive.modules.CrawlURI;
-import org.archive.modules.deciderules.recrawl.IdenticalDigestDecideRule;
-import org.archive.util.Reporter;
+import org.archive.modules.revisit.IdenticalPayloadDigestRevisit;
+import org.archive.modules.revisit.ServerNotModifiedRevisit;
+import org.archive.util.TemplateReporter;
 
 /**
  * Collector of statistics for a 'subset' of a crawl,
@@ -34,7 +34,7 @@ import org.archive.util.Reporter;
  * 
  * @author gojomo
  */
-public class FetchStats implements Serializable, FetchStatusCodes, Reporter {
+public class FetchStats implements Serializable, FetchStatusCodes, TemplateReporter {
     private static final long serialVersionUID = 8624425657056569036L;
 
     public enum Stage {SCHEDULED, RELOCATED, RETRIED, 
@@ -65,10 +65,15 @@ public class FetchStats implements Serializable, FetchStatusCodes, Reporter {
     protected long notModifiedBytes;
     protected long notModifiedUrls;
     protected long dupByHashBytes;
-    protected long dupByHashUrls;  
+    protected long dupByHashUrls;
+    protected long otherDupBytes;
+    protected long otherDupUrls;
     
     protected long lastSuccessTime; 
     
+    /*
+     * XXX redundancy with StatisticsTracker.onApplicationEvent() ... CrawledBytesHistotable.accumulate() code path
+     */
     public synchronized void tally(CrawlURI curi, Stage stage) {
         switch(stage) {
             case SCHEDULED:
@@ -84,19 +89,11 @@ public class FetchStats implements Serializable, FetchStatusCodes, Reporter {
                 fetchResponses++;
                 totalBytes += curi.getContentSize();
                 successBytes += curi.getContentSize();
-           
-                if (curi.getFetchStatus() == HttpStatus.SC_NOT_MODIFIED) {
-                    notModifiedBytes += curi.getContentSize();
-                    notModifiedUrls++;
-                } else if (IdenticalDigestDecideRule.hasIdenticalDigest(curi)){
-                    dupByHashBytes += curi.getContentSize();
-                    dupByHashUrls++;
-                } else {
+                lastSuccessTime = curi.getFetchCompletedTime();
+                if (curi.getRevisitProfile() == null) {
                     novelBytes += curi.getContentSize();
                     novelUrls++;
-                } 
-                
-                lastSuccessTime = curi.getFetchCompletedTime();
+                }
                 break;
             case DISREGARDED:
                 fetchDisregards++;
@@ -110,22 +107,26 @@ public class FetchStats implements Serializable, FetchStatusCodes, Reporter {
                 } else {
                     fetchResponses++;
                     totalBytes += curi.getContentSize();
-                    
-                    if (curi.getFetchStatus() == HttpStatus.SC_NOT_MODIFIED) { 
-                        notModifiedBytes += curi.getContentSize();
-                        notModifiedUrls++;
-                    } else if (IdenticalDigestDecideRule.
-                            hasIdenticalDigest(curi)) {
-                        dupByHashBytes += curi.getContentSize();
-                        dupByHashUrls++;
-                    } else {
+                    if (curi.getRevisitProfile() == null) {
                         novelBytes += curi.getContentSize();
                         novelUrls++;
-                    } 
-
+                    }
                 }
                 fetchFailures++;
                 break;
+            default:
+                break;
+        }
+
+        if (curi.getRevisitProfile() instanceof ServerNotModifiedRevisit) {
+            notModifiedBytes += curi.getContentSize();
+            notModifiedUrls++;
+        } else if (curi.getRevisitProfile() instanceof IdenticalPayloadDigestRevisit) {
+            dupByHashBytes += curi.getContentSize();
+            dupByHashUrls++;
+        } else if (curi.getRevisitProfile() != null) {
+            otherDupBytes += curi.getContentSize();
+            otherDupUrls++;
         }
     }
     
@@ -228,7 +229,7 @@ public class FetchStats implements Serializable, FetchStatusCodes, Reporter {
 //        writer.print(ArchiveUtils.getLog17Date(lastSuccessTime));
 //    }
 
-    @Override
+    //@Override
     public Map<String, Object> shortReportMap() {
         Map<String,Object> map = new LinkedHashMap<String, Object>();
         map.put("totalScheduled", totalScheduled);

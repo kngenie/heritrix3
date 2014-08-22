@@ -76,7 +76,7 @@ public class ExtractorJS extends ContentExtractor {
 
     protected boolean shouldExtract(CrawlURI uri) {
         String contentType = uri.getContentType();
-        if ((contentType == null)) {
+        if (contentType == null) {
             return false;
         }
 
@@ -88,6 +88,10 @@ public class ExtractorJS extends ContentExtractor {
             return true;
         }
         if (contentType.indexOf("ecmascript") >= 0) {
+            return true;
+        }
+
+        if (contentType.startsWith("application/json")) {
             return true;
         }
         
@@ -171,11 +175,11 @@ public class ExtractorJS extends ContentExtractor {
             try {
                 int max = ext.getExtractorParameters().getMaxOutlinks();
                 if (handlingJSFile) {
-                    Link.addRelativeToVia(curi, max, candidate, JS_MISC, 
+                    addRelativeToVia(curi, max, candidate, JS_MISC, 
                             SPECULATIVE);
                     return true;
                 } else {
-                    Link.addRelativeToBase(curi, max, candidate, JS_MISC, 
+                    addRelativeToBase(curi, max, candidate, JS_MISC, 
                             SPECULATIVE);
                     return true;
                 }

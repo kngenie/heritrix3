@@ -152,14 +152,14 @@ public class ExtractorXML extends ContentExtractor {
         Matcher matcher = XML_URI_EXTRACTOR.matcher(cs);
         while (matcher.find()) {
             String xmlUri = StringEscapeUtils.unescapeXml(matcher.group(1));
-            if (UriUtils.isLikelyUri(xmlUri)) {
+            if (UriUtils.isVeryLikelyUri(xmlUri)) {
                 foundLinks++;
                 try {
                     // treat as speculative, as whether context really 
                     // intends to create a followable/fetchable URI is
                     // unknown
                     int max = ext.getExtractorParameters().getMaxOutlinks();
-                    Link.addRelativeToBase(curi, max, xmlUri, 
+                    addRelativeToBase(curi, max, xmlUri, 
                             LinkContext.SPECULATIVE_MISC, Hop.SPECULATIVE); 
                 } catch (URIException e) {
                     // There may not be a controller (e.g. If we're being run

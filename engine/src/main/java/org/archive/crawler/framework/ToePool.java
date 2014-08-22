@@ -29,7 +29,7 @@ import java.util.Map.Entry;
 import org.apache.commons.lang.StringUtils;
 import org.archive.crawler.reporting.AlertThreadGroup;
 import org.archive.util.Histotable;
-import org.archive.util.Reporter;
+import org.archive.util.TemplateReporter;
 
 /**
  * A collection of ToeThreads. The class manages the ToeThreads currently
@@ -42,7 +42,7 @@ import org.archive.util.Reporter;
  *
  * @see org.archive.crawler.framework.ToeThread
  */
-public class ToePool extends ThreadGroup implements Reporter {
+public class ToePool extends ThreadGroup implements TemplateReporter {
     /** run worker thread slightly lower than usual */
     public static int DEFAULT_TOE_PRIORITY = Thread.NORM_PRIORITY - 1;
     
@@ -259,7 +259,7 @@ public class ToePool extends ThreadGroup implements Reporter {
         }
     }
 
-    @Override
+    //@Override
     public Map<String, Object> shortReportMap() {
         Histotable<Object> steps = new Histotable<Object>();
         Histotable<Object> processors = new Histotable<Object>();

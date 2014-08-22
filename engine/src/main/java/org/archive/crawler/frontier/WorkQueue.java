@@ -22,6 +22,7 @@ package org.archive.crawler.frontier;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Serializable;
+import java.io.StringWriter;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -39,8 +40,8 @@ import org.archive.modules.fetcher.FetchStats.Stage;
 import org.archive.util.ArchiveUtils;
 import org.archive.util.IdentityCacheable;
 import org.archive.util.ObjectIdentityCache;
-import org.archive.util.ReportUtils;
-import org.archive.util.TextReporter;
+import org.archive.util.Reporter;
+import org.archive.util.TemplateReporter;
 
 /**
  * A single queue of related URIs to visit, grouped by a classKey
@@ -50,7 +51,7 @@ import org.archive.util.TextReporter;
  * @author Christian Kohlschuetter 
  */
 public abstract class WorkQueue implements Frontier.FrontierGroup,
-        Serializable, TextReporter, Delayed, IdentityCacheable {
+        Serializable, TemplateReporter, Delayed, IdentityCacheable {
     private static final long serialVersionUID = -3199666138837266341L;
     private static final Logger logger =
         Logger.getLogger(WorkQueue.class.getName());
@@ -452,7 +453,7 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
     // Reporter
     //
 
-    @Override
+    //@Override
     public synchronized Map<String, Object> shortReportMap() {
         Map<String,Object> map = new LinkedHashMap<String, Object>();
 
@@ -553,7 +554,12 @@ public abstract class WorkQueue implements Frontier.FrontierGroup,
     
     // still used for logging
     public String shortReportLine() {
-        return ReportUtils.shortReportLine(this);
+        //return ReportUtils.shortReportLine(this);
+    	StringWriter sw = new StringWriter();
+    	PrintWriter pw = new PrintWriter(sw);
+    	shortReportLineTo(pw);
+    	pw.flush();
+    	return sw.toString();
     }
     
 //    /**

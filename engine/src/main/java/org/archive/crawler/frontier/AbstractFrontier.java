@@ -39,7 +39,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.lang.management.ThreadInfo;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicLong;
@@ -70,7 +69,6 @@ import org.archive.modules.seeds.SeedModule;
 import org.archive.spring.HasKeyedProperties;
 import org.archive.spring.KeyedProperties;
 import org.archive.util.ArchiveUtils;
-import org.archive.util.ReportUtils;
 import org.archive.util.iterator.LineReadingIterator;
 import org.archive.util.iterator.RegexLineIterator;
 import org.json.JSONException;
@@ -387,13 +385,14 @@ public abstract class AbstractFrontier
                         }
                         break;
                     case FINISH:
+                        logger.fine("FINISH requested, waiting for in process urls to finish");
                         // prevent all outbound takes
                         outboundLock.writeLock().lock();
                         // process all inbound
                         while (getInProcessCount()>0) {
                             Thread.sleep(1000);
                         }
-
+                        logger.fine("0 urls in process, running final tasks");
                         finalTasks(); 
                         // TODO: more cleanup?
                         reachedState(State.FINISH);
@@ -438,6 +437,7 @@ public abstract class AbstractFrontier
      */
     protected void reachedState(State justReached) {
         if(justReached != lastReachedState) {
+            logger.fine("reached Frontier.State " + this.lastReachedState + ", notifying listeners");
             controller.noteFrontierState(justReached);
             lastReachedState = justReached;
         }
@@ -621,10 +621,14 @@ public abstract class AbstractFrontier
             server.getSubstats().tally(curi, stage);
             server.makeDirty(); 
         }
-        CrawlHost host = getServerCache().getHostFor(curi.getUURI());
-        if (host != null) {
-            host.getSubstats().tally(curi, stage);
-            host.makeDirty();
+        try {
+            CrawlHost host = getServerCache().getHostFor(curi.getUURI());
+            if (host != null) {
+                host.getSubstats().tally(curi, stage);
+                host.makeDirty();
+            }
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "unable to tally host stats for " + curi, e);
         }
         FrontierGroup group = getGroup(curi);
         group.tally(curi, stage);

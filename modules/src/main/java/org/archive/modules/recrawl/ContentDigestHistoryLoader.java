@@ -18,8 +18,13 @@
  */
 package org.archive.modules.recrawl;
 
+import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_ORIGINAL_DATE;
+import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_ORIGINAL_URL;
+import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_WARC_RECORD_ID;
+
 import org.archive.modules.CrawlURI;
 import org.archive.modules.Processor;
+import org.archive.modules.revisit.IdenticalPayloadDigestRevisit;
 import org.springframework.beans.factory.annotation.Autowired;
 
 public class ContentDigestHistoryLoader extends Processor {
@@ -39,5 +44,18 @@ public class ContentDigestHistoryLoader extends Processor {
     @Override
     protected void innerProcess(CrawlURI curi) throws InterruptedException {
         contentDigestHistory.load(curi);
+
+        if (!curi.getContentDigestHistory().isEmpty()) {
+        	IdenticalPayloadDigestRevisit revisit = 
+        			new IdenticalPayloadDigestRevisit(curi.getContentDigestSchemeString());
+			revisit.setRefersToDate((String)curi.getContentDigestHistory().get(A_ORIGINAL_DATE));
+			revisit.setRefersToTargetURI((String)curi.getContentDigestHistory().get(A_ORIGINAL_URL));
+			String warcRecordId= (String)curi.getContentDigestHistory().get(A_WARC_RECORD_ID);
+			if (warcRecordId!=null) {
+				revisit.setRefersToRecordID(warcRecordId);
+			}
+			curi.setRevisitProfile(revisit);
+            curi.getAnnotations().add("duplicate:digest");
+        }
     }
 }

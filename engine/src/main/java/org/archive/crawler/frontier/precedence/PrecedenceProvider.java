@@ -26,14 +26,13 @@ import java.util.Map;
 import org.archive.modules.CrawlURI;
 import org.archive.modules.fetcher.FetchStats;
 import org.archive.modules.fetcher.FetchStats.Stage;
-import org.archive.util.ReportUtils;
-import org.archive.util.TextReporter;
+import org.archive.util.TemplateReporter;
 
 /**
  * Parent class for precedence-providers, stateful helpers that can be 
  * installed in a WorkQueue to implement various queue-precedence policies. 
  */
-abstract public class PrecedenceProvider implements TextReporter, 
+abstract public class PrecedenceProvider implements TemplateReporter,
 FetchStats.CollectsFetchStats, Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -61,11 +60,11 @@ FetchStats.CollectsFetchStats, Serializable {
         return getClass().getSimpleName();
     }
 
-    public String shortReportLine() {
-        return ReportUtils.shortReportLine(this);
-    }
+//    public String shortReportLine() {
+//        return ReportUtils.shortReportLine(this);
+//    }
 
-    @Override
+    //@Override
     public Map<String, Object> shortReportMap() {
         Map<String,Object> data = new LinkedHashMap<String, Object>();
         data.put("className", getClass().getSimpleName());
@@ -79,7 +78,7 @@ FetchStats.CollectsFetchStats, Serializable {
     	return data;
     }
 
-    @Override
+    //@Override
     public void shortReportLineTo(PrintWriter writer) {
         writer.print(getPrecedence());
     }

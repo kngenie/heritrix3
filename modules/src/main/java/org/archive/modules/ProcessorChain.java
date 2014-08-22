@@ -105,7 +105,7 @@ implements Iterable<Processor>,
         return data;
     }
     
-    @Override
+    //@Override
     public Map<String, Object> reportMap() {
     	Map<String, Object> data = shortReportMap();
     	data.put("className", getClass().getSimpleName());

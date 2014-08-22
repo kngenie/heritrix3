@@ -22,7 +22,7 @@ package org.archive.crawler.restlet;
 import java.beans.IntrospectionException;
 import java.beans.PropertyDescriptor;
 import java.io.File;
-import java.io.PrintWriter;
+import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
@@ -44,7 +44,6 @@ import org.restlet.data.Response;
 import org.restlet.resource.ResourceException;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.BeanWrapperImpl;
-import org.springframework.beans.InvalidPropertyException;
 
 /**
  * Shared superclass for resources that represent functional aspects
@@ -251,13 +250,15 @@ public abstract class JobRelatedResource extends BaseResource {
         
         Collection<Object> propValues = new LinkedList<Object>();
         if(object.getClass().isArray()) {
-            Object[] array = (Object[])object;
-            for(int i = 0; i < array.length; i++) {
+        	// TODO: may want a special handling for an array of
+        	// primitive types?
+        	int len = Array.getLength(object);
+        	for (int i = 0; i < len; i++) {
                 if(beanPath!=null) {
                     beanPathPrefix = beanPath+"[";
                 }
                 // TODO: protect against overlong content? 
-                propValues.add(makePresentableMapFor(i + "", array[i],
+                propValues.add(makePresentableMapFor(i + "", Array.get(object, i),
                         alreadyWritten, beanPathPrefix));
             }
         }

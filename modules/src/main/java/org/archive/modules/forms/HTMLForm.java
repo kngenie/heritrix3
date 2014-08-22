@@ -20,10 +20,12 @@
 package org.archive.modules.forms;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.commons.httpclient.NameValuePair;
 import org.apache.commons.lang.StringUtils;
+import org.archive.util.TextUtils;
 
 /**
  * Simple representation of a discovered HTML Form. 
@@ -58,10 +60,14 @@ public class HTMLForm {
     public void addField(String type, String name, String value) {
         FormInput input = new FormInput();
         input.type = type;
+        // default input type is text per html standard
+        if (input.type == null) {
+            input.type = "text";
+        }
         input.name = name;
         input.value = value; 
         allInputs.add(input);
-        if("text".equalsIgnoreCase(type)||"email".equalsIgnoreCase(type)) {
+        if("text".equalsIgnoreCase(input.type) || "email".equalsIgnoreCase(input.type)) {
             candidateUsernameInputs.add(input);
         } else if ("password".equalsIgnoreCase(type)) {
             candidatePasswordInputs.add(input);
@@ -100,6 +106,7 @@ public class HTMLForm {
      * @param username
      * @param password
      * @return
+     * @deprecated specific to a particular FetchHTTP implementation based on commons-httpclient, use {@link #asFormDataString(String, String)}
      */
     public NameValuePair[] asHttpClientDataWith(String username, String password) {
         ArrayList<NameValuePair> data = new ArrayList<NameValuePair>(allInputs.size());
@@ -114,6 +121,22 @@ public class HTMLForm {
             }
         }
         return data.toArray(new NameValuePair[data.size()]);
+    }
+    
+    public String asFormDataString(String username, String password) {
+        List<String> nameVals = new LinkedList<String>();
+
+        for (FormInput input : allInputs) {
+            if(input == candidateUsernameInputs.get(0)) {
+                nameVals.add(TextUtils.urlEscape(input.name) + "=" + TextUtils.urlEscape(username));
+            } else if(input == candidatePasswordInputs.get(0)) {
+                nameVals.add(TextUtils.urlEscape(input.name) + "=" + TextUtils.urlEscape(password));
+            } else if (StringUtils.isNotEmpty(input.name) && StringUtils.isNotEmpty(input.value)) {
+                nameVals.add(TextUtils.urlEscape(input.name) + "=" + TextUtils.urlEscape(input.value));
+            }
+        }
+
+        return StringUtils.join(nameVals, '&');
     }
 
     public String toString() {

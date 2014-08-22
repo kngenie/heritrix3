@@ -19,18 +19,15 @@
 
 package org.archive.modules.deciderules.recrawl;
 
-import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_CONTENT_DIGEST;
-import static org.archive.modules.recrawl.RecrawlAttributeConstants.A_FETCH_HISTORY;
-
-import java.util.Map;
-
+import org.archive.format.warc.WARCConstants;
 import org.archive.modules.CrawlURI;
 import org.archive.modules.deciderules.DecideResult;
 import org.archive.modules.deciderules.PredicatedDecideRule;
+import org.archive.modules.revisit.RevisitProfile;
 
 /**
- * Rule applies configured decision to any CrawlURIs whose prior-history
- * content-digest matches the latest fetch. 
+ * Rule applies configured decision to any CrawlURIs whose revisit profile is set with a profile matching
+ * {@link WARCConstants#PROFILE_REVISIT_IDENTICAL_DIGEST}
  *
  * @author gojomo
  */
@@ -49,11 +46,10 @@ public class IdenticalDigestDecideRule extends PredicatedDecideRule {
     }
 
     /**
-     * Evaluate whether given CrawlURI's content-digest exactly 
-     * matches that of preceding fetch. 
+     * Evaluate whether given CrawlURI's revisit profile has been set to identical digest
      *
      * @param object should be CrawlURI
-     * @return true if current-fetch content-digest matches previous
+     * @return true if CrawlURI has been flagged as an identical digest revist
      */
     protected boolean evaluate(CrawlURI curi) {
         return hasIdenticalDigest(curi);
@@ -61,28 +57,17 @@ public class IdenticalDigestDecideRule extends PredicatedDecideRule {
 
 
     /**
-     * Utility method for testing if a CrawlURI's last two history 
-     * entries (one being the most recent fetch) have identical 
-     * content-digest information. 
+     * Utility method for testing if a CrawlURI's revisit profile matches an identical payload digest.
      * 
      * @param curi CrawlURI to test
-     * @return true if last two history entries have identical digests, 
-     * otherwise false
+     * @return true if revisit profile is set to identical payload digest, false otherwise
      */
-    @SuppressWarnings("unchecked")
     public static boolean hasIdenticalDigest(CrawlURI curi) {
-        if(curi.containsDataKey(A_FETCH_HISTORY)) {
-            Map<String,Object>[] history = 
-                (Map<String,Object>[])curi.getData().get(A_FETCH_HISTORY);
-            return history[0] != null 
-                   && history[0].containsKey(A_CONTENT_DIGEST)
-                   && history[1] != null
-                   && history[1].containsKey(A_CONTENT_DIGEST)
-                   && history[0].get(A_CONTENT_DIGEST).equals(
-                           history[1].get(A_CONTENT_DIGEST));
-        } else {
-            return false;
+        RevisitProfile revisit = curi.getRevisitProfile();
+        if (revisit==null) {
+        	return false;
         }
+        return revisit.getProfileName().equals(WARCConstants.PROFILE_REVISIT_IDENTICAL_DIGEST);
     }
 
 }

@@ -44,7 +44,8 @@ import org.archive.util.ArchiveUtils;
 import org.archive.util.DevUtils;
 import org.archive.util.ProgressStatisticsReporter;
 import org.archive.util.Recorder;
-import org.archive.util.ThreadReporter;
+import org.archive.util.Reporter;
+import org.archive.util.TemplateReporter;
 
 import com.sleepycat.util.RuntimeExceptionWrapper;
 
@@ -55,7 +56,7 @@ import com.sleepycat.util.RuntimeExceptionWrapper;
  * @author Gordon Mohr
  */
 public class ToeThread extends Thread
-implements ThreadReporter, ProgressStatisticsReporter, 
+implements Reporter, TemplateReporter, ProgressStatisticsReporter,
            HostResolver, SinkHandlerLogThread, ChainStatusReceiver {
 
     public enum Step {
