@@ -119,12 +119,6 @@
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
-			<groupId>net.java.dev.jets3t</groupId>
-			<artifactId>jets3t</artifactId>
-			<version>0.5.0</version>
-			<scope>compile</scope>
-		</dependency>
-		<dependency>
 			<groupId>it.unimi.dsi</groupId>
 			<artifactId>mg4j</artifactId>
 			<version>1.0.1</version>
@@ -190,7 +184,7 @@
 		<dependency>
 			<groupId>org.netpreserve.commons</groupId>
 			<artifactId>webarchive-commons</artifactId>
-			<version>1.1.1-IA-SNAPSHOT</version>
+			<version>1.1.4</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.apache.hadoop</groupId>
