@@ -2,15 +2,13 @@ package org.archive.crawler.reporting;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.HashMap;
 import java.util.Map;
 
 import org.archive.crawler.framework.CrawlController;
 import org.archive.util.ArchiveUtils;
 import org.archive.util.Reporter;
 
+import freemarker.ext.beans.BeanModel;
 import freemarker.ext.beans.BeansWrapper;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
@@ -38,60 +36,82 @@ import freemarker.template.TemplateModelException;
  */
 public abstract class FreeMarkerReport extends Report {
 
-	public static class ReportModel {
-		private Object target;
-		private Map<String, Object> reportMap = null;
-		public ReportModel(Object target) {
-			this.target = target;
-			if (this.target instanceof Reporter) {
-				this.reportMap = ((Reporter)this.target).shortReportMap();
-			} else if (this.target instanceof CrawlController) {
-				this.reportMap = new HashMap<String, Object>();
-			}
+	/**
+	 * FreeMarker BeansWrapper that wraps {@link Reporter} objects with {@link ReportModel}.
+	 */
+	public static class ReportBeansWrapper extends BeansWrapper {
+		public ReportBeansWrapper() {
+			/*
+			 *  It must be a good idea not to let templates access methods,
+			 *  but some components (ex. UriUniqFilter, Processor) neither
+			 *  implement Reporter interface, nor expose information in JavaBeans way.
+			 *  Disabled exposure restriction for now.
+			 */
+			//setExposureLevel(EXPOSE_PROPERTIES_ONLY);
+
+			// use SimpleMapModel, or ?key builtin returns all Map methods in addition
+			// to keys of the map. It is very confusing. Alternatively we
+			setSimpleMapWrapper(true);
 		}
 
-		/**
-		 * return JavaBeans property {@code key} of {@link CrawlController}. if
-		 * property value is an Object implementing {@link Reporter} interface,
-		 * invokes {@link Reporter#shortreportMap()} method and returns its
-		 * return value instead.
-		 * @param key property name
-		 * @return simple property value, or a Map
-		 * @throws IllegalArgumentException
-		 * @throws IllegalAccessException
-		 * @throws InvocationTargetException
-		 */
-		public Object get(String key) throws IllegalArgumentException, IllegalAccessException, InvocationTargetException  {
-			if (reportMap != null && reportMap.containsKey(key))
-				return reportMap.get(key);
-			Method m = findGetter(key);
-			if (m == null) return null;
-			Object obj = m.invoke(target, new Object[0]);
-			if (obj instanceof Reporter) {
-				obj = new ReportModel(obj);
-				reportMap.put(key,  obj);
+		@Override
+		public TemplateModel wrap(Object object) throws TemplateModelException {
+			if (object instanceof Reporter) {
+				return new ReportModel((Reporter)object, this);
 			}
-			return obj;
+			return super.wrap(object);
 		}
-		protected Method findGetter(String property) {
-			String capped = Character.toUpperCase(property.charAt(0)) + property.substring(1);
-			try {
-				return target.getClass().getMethod("get" + capped, new Class[0]);
-			} catch (NoSuchMethodException e1) {
-				try {
-				return target.getClass().getMethod("is" + capped, new Class[0]);
-				} catch (NoSuchMethodException e2) {
-					return null;
-				}
+	}
+
+	private static final ReportBeansWrapper theWrapperInstance = new ReportBeansWrapper();
+
+	/**
+	 * FreeMarker {@link TemplateModel} for use as root-level map passed to
+	 * {@link Template#process(Object, java.io.Writer)}.
+	 * It wraps {@link CrawlController} to provide reflective access to its properties,
+	 * and also exports a few helper methods.
+	 */
+	public static class RootReportModel extends BeanModel {
+		// BeansWrapper for exposing methods to templates. Assuming the default instance's
+		// exposure level is unchanged from the default value EXPOSE_SAFE.
+		private static final BeansWrapper methodsBeansWrapper = BeansWrapper.getDefaultInstance();
+		public RootReportModel(CrawlController controller) {
+			super(controller, theWrapperInstance);
+		}
+		@Override
+		public TemplateModel get(String key) throws TemplateModelException {
+			// Use default BreansWrapper for these members for exposing methods.
+			// (assuming default BeansWrapper instance's exposure level is unchanged).
+			if (key.equals("currentTimeMillis")) {
+				TemplateModel system = methodsBeansWrapper.getStaticModels().get(System.class.getName());
+				return ((TemplateHashModel)system).get(key);
 			}
+			if (key.equals("archiveUtils")) {
+				return methodsBeansWrapper.getStaticModels().get(ArchiveUtils.class.getName());
+			}
+			return super.get(key);
 		}
-		public long currentTimeMillis() {
-			return System.currentTimeMillis();
+		@Override
+		public boolean isEmpty() {
+			return false;
 		}
-		public TemplateModel getArchiveUtils() throws TemplateModelException {
-			BeansWrapper wrapper = BeansWrapper.getDefaultInstance();
-			TemplateHashModel staticModels = wrapper.getStaticModels();
-			return staticModels.get(ArchiveUtils.class.getName());
+	}
+
+	/**
+	 * FreeMarker BeanModel extended for pulling data out of {@link Reporter#shortReportMap()}
+	 * in preference to reflective access.
+	 */
+	public static class ReportModel extends BeanModel {
+		private Map<String, Object> reportMap;
+		public ReportModel(Reporter object, BeansWrapper wrapper) {
+			super(object, wrapper);
+			this.reportMap = object.shortReportMap();
+		}
+		public TemplateModel get(String key) throws TemplateModelException {
+			if (reportMap.containsKey(key)) {
+				return wrap(reportMap.get(key));
+			}
+			return super.get(key);
 		}
 	}
 
@@ -117,7 +137,7 @@ public abstract class FreeMarkerReport extends Report {
 		// TODO: think about better error reporting interface than throwing RuntimeException.
 		try {
 			Template template = tmplConfig.getTemplate(templateName);
-			template.process(new ReportModel(controller), writer);
+			template.process(new RootReportModel(controller), writer);
 			writer.flush();
 		} catch (IOException ex) {
 			throw new RuntimeException(ex);

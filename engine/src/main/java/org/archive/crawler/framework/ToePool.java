@@ -282,6 +282,7 @@ public class ToePool extends ThreadGroup implements Reporter {
         Map<String,Object> data = new LinkedHashMap<String, Object>();
 
         data.put("toeCount", getToeCount());
+        data.put("activeToeCount", getActiveToeCount());
         
         LinkedList<String> unwound = new LinkedList<String>(); 
         for (Entry<?, Long> step: steps.getSortedByCounts()) {
@@ -294,17 +295,10 @@ public class ToePool extends ThreadGroup implements Reporter {
             unwound.add(proc.getValue() + " " + proc.getKey());
         }
         data.put("processors", unwound);
+        data.put("toeThreads", getToeThreadsData());
         
         return data;
     }
-
-//    @Override
-//    public Map<String, Object> reportMap() {
-//    	Map<String, Object> data = shortReportMap();
-//        data.put("activeToeCount", getActiveToeCount());
-//        data.put("toeThreads", getToeThreadsData());
-//    	return data;
-//    }
 
     @SuppressWarnings("unchecked")
     @Override

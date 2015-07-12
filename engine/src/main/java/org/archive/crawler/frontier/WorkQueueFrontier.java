@@ -1121,6 +1121,17 @@ implements Closeable,
 
 		map.put("largestQueues", largestQueues.size());
 
+		// following items have keys different from their
+		// respective methods. it is to prevent FreeMarkerReport
+		// from fetching method object instead of numbers when
+		// allQueues == null.
+		map.put("discoveredUri", discoveredUriCount());
+		map.put("queuedUri",  queuedUriCount());
+		map.put("finishedUri", finishedUriCount());
+		map.put("succeededFetch", succeededFetchCount());
+		map.put("failedFetch", failedFetchCount());
+		map.put("disregardedUri", disregardedUriCount());
+
 		// managerThread is defined in AbstractFrontier. should this be done there?
 		ThreadMXBean tmxb = ManagementFactory.getThreadMXBean();
 		map.put("managerThreadData", tmxb.getThreadInfo(managerThread.getId()));
@@ -1312,12 +1323,12 @@ implements Closeable,
 	}
 
 	public Iterator<Map<String, Object>> getInProcessQueuesDataAll() {
-		return getInProcessQueuesData(0);
+		return getInProcessQueuesDataLimit(0);
 	}
 	public Iterator<Map<String, Object>> getInProcessQueuesData() {
-		return getInProcessQueuesData(maxQueuesPerReportCategory);
+		return getInProcessQueuesDataLimit(maxQueuesPerReportCategory);
 	}
-	public Iterator<Map<String, Object>> getInProcessQueuesData(int maxCount) {
+	public Iterator<Map<String, Object>> getInProcessQueuesDataLimit(int maxCount) {
 		final ArrayList<WorkQueue> inProcessQueuesCopy;
 		// XXX these synchronization does nothing meaningful because nobody else
 		// is synchronizing on inProcessQueues.

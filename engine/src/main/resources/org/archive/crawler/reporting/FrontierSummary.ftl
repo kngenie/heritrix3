@@ -39,9 +39,9 @@ Frontier report - ${archiveUtils.get12DigitDate()}
  Job being crawled: ${metadata.jobName}
 
  -----===== STATS =====-----
- Discovered:    ${frontier.discoveredUriCount!'-'}
- Queued:        ${frontier.queuedUriCount!'-'}
- Finished:      ${frontier.finishedUriCount!'-'}
+ Discovered:    ${frontier.discoveredUri!'-'}
+ Queued:        ${frontier.queuedUri!'-'}
+ Finished:      ${frontier.finishedUri!'-'}
   Successfully: ${succeededFetchCount!'-'}
   Failed:       ${failedFetchCount!'-'}
   Disregarded:  ${disregardedCount!'-'}
