@@ -28,12 +28,6 @@ package org.archive.crawler.reporting;
  */
 public class FrontierSummaryReport extends FreeMarkerReport {
 	public FrontierSummaryReport() {
-		super("FrontierSummary.ftl");
+		super("FrontierSummary.ftl", "frontier-summary-report.txt");
 	}
-
-    @Override
-    public String getFilename() {
-        return "frontier-summary-report.txt";
-    }
-
 }

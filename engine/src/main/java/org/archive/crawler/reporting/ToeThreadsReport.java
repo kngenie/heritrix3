@@ -26,12 +26,6 @@ package org.archive.crawler.reporting;
  */
 public class ToeThreadsReport extends FreeMarkerReport {
 	public ToeThreadsReport() {
-		super("ToeThreads.ftl");
-	}
-
-	@Override
-    public String getFilename() {
-        return "threads-report.txt";
-    }
-    
+		super("ToeThreads.ftl", "threads-report.txt");
+	}    
 }

@@ -28,12 +28,6 @@ package org.archive.crawler.reporting;
  */
 public class FrontierNonemptyReport extends FreeMarkerReport {
 	public FrontierNonemptyReport() {
-		super("FrontierNonempty.ftl");
+		super("FrontierNonempty.ftl", "frontier-nonempty-report.txt");
 	}
-
-    @Override
-    public String getFilename() {
-        return "frontier-nonempty-report.txt";
-    }
-
 }

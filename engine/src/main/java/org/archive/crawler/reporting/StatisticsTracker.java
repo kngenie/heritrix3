@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
@@ -663,7 +664,53 @@ public class StatisticsTracker
         return sortedMap;
     }
 
+    /**
+     * Iterator on DisposableStoredSortedMap, that automatically disposes the base
+     * object at the end.
+     * @param <K> key type
+     * @param <V> value type
+     */
+    public static class DisposingEntryIterator<K, V> implements Iterator<Entry<K, V>> {
+    	private final DisposableStoredSortedMap<K, V> sortedMap;
+    	private final Iterator<Entry<K, V>> itr;
+    	public DisposingEntryIterator(DisposableStoredSortedMap<K, V> sortedMap) {
+    		this.sortedMap = sortedMap;
+    		this.itr = sortedMap.entrySet().iterator();
+    	}
 
+		@Override
+		public boolean hasNext() {
+			if (itr.hasNext())
+				return true;
+			else {
+				sortedMap.dispose();
+				return false;
+			}
+		}
+
+		@Override
+		public Entry<K, V> next() {
+			return itr.next();
+		}
+
+		@Override
+		public void remove() {
+			itr.remove();
+		}
+    }
+
+    /**
+     * Return an iterator on (Long, String) tuples, sorted by Long (count) from
+     * largest to smallest. Since returned iterator is backed by BDB, you must
+     * iterator until the end so that backing store is properly disposed. 
+     * @param tallyTable source tally table
+     * @return an iterator on tuples, sorted by count
+     */
+	public Iterator<Entry<Long, String>> sortByCount(
+			final Map<String, AtomicLong> tallyTable) {
+    	DisposableStoredSortedMap<Long, String> sortedMap = getReverseSortedCopy(tallyTable);
+    	return new DisposingEntryIterator<Long, String>(sortedMap);
+    }
 
     /**
      * Return a objectCache representing the distribution of status codes for
@@ -1029,6 +1076,14 @@ public class StatisticsTracker
             }
         }
     }
+
+    public long getSeedsCrawled() {
+		return seedsCrawled;
+	}
+
+    public long getSeedsTotal() {
+		return seedsTotal;
+	}
 
     /** 
      * Create a seed record, even on initial notification (before

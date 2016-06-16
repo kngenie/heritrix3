@@ -28,12 +28,6 @@ package org.archive.crawler.reporting;
  */
 public class ProcessorsReport extends FreeMarkerReport {
 	public ProcessorsReport() {
-		super("Processor.ftl");
+		super("Processor.ftl", "processors-report.txt");
 	}
-
-    @Override
-    public String getFilename() {
-        return "processors-report.txt";
-    }
-
 }
