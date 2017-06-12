@@ -158,7 +158,7 @@ public class CandidatesProcessor extends Processor {
      * @return candidate's status code at end of candidate chain execution
      * @throws InterruptedException
      */
-    protected int runCandidateChain(CrawlURI candidate, CrawlURI source) throws InterruptedException {
+    public int runCandidateChain(CrawlURI candidate, CrawlURI source) throws InterruptedException {
         // at least for duration of candidatechain, offer
         // access to full CrawlURI of via
         candidate.setFullVia(source); 
@@ -168,7 +168,7 @@ public class CandidatesProcessor extends Processor {
             KeyedProperties.loadOverridesFrom(candidate);
             
             // apply special seed-status promotion
-            if(getSeedsRedirectNewSeeds() && source.isSeed() 
+            if(getSeedsRedirectNewSeeds() && source != null && source.isSeed() 
                     && candidate.getLastHop().equals(Hop.REFER.getHopString())
                     && candidate.getHopCount() < SEEDS_REDIRECT_NEW_SEEDS_MAX_HOPS) {
                 candidate.setSeed(true); 

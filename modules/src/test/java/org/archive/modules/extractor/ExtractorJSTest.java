@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.apache.commons.lang.StringEscapeUtils;
 import org.archive.modules.CrawlURI;
 import org.archive.net.UURI;
 import org.archive.net.UURIFactory;
@@ -114,14 +113,44 @@ public class ExtractorJSTest extends StringExtractorTestBase {
         
         "var blah='/good/query/value/with/url-escaping.html?foo=bar%20bar';",
         "http://www.archive.org/good/query/value/with/url-escaping.html?foo=bar%20bar",
-        
+
         "\\u0027project_detail.aspx?guid=unicodesinglequote\\u0027",
         "http://www.archive.org/foo/project_detail.aspx?guid=unicodesinglequote",
-        
+
         "\\u0022project_detail.aspx?guid=unicodedoublequote\\u0022",
-        "http://www.archive.org/foo/project_detail.aspx?guid=unicodedoublequote",        
+        "http://www.archive.org/foo/project_detail.aspx?guid=unicodedoublequote",
+
+        "{url: '/static/0000/2683/good_filename_with.two_dots.jpg',caption:'blah blah' }",
+        "http://www.archive.org/static/0000/2683/good_filename_with.two_dots.jpg",
+
+        "{nonUrl: 'non-filename.with_two.dots',etc:'foo foo' }",
+        null,
+
+        "\"FileRef\": \"\\u002fsites\\u002fprb\\u002fPublic Comment Emails PDF\\u002fOpen Records Law_1r71vq4i.pdf\",\"",
+        "http://www.archive.org/sites/prb/Public Comment Emails PDF/Open Records Law_1r71vq4i.pdf",
+
+        "\"FileRef\": \"\\u002fsites\\u002fprb\\u002fPublic Comment Emails PDF\\u002fOpen Records Law_1r71vq4i.bad\",\"",
+        null,
+
+        "\"FileRef\": \"\\u002fsites\\u002fprb\\u002fPublic Comment Emails PDF\\u002fOpenRecordsLaw_1r71vq4i.bad\",\"",
+        null,
+
+        "\"FileRef\": \"\\u002fsites\\u002fprb\\u002fPublic Comment Emails PDF\\u002fOpen Records Law_1r71vq4i\",\"",
+        null,
+
+        "\"FileRef\": \"\\u002fsites\\u002fprb\\u002fPublic Comment Emails PDF\\u002fOpenRecordsLaw_1r71vq4i\",\"",
+        null,
+
+        /*
+         * XXX this one fails currently because the string has no slashes or
+         * dots, until it is javascript-unescaped, which happens too late.
+         * Unescaping earlier involves converting many more CharSubSequence to
+         * String. Is it worth the performance hit?
+         */
+        // "\"FileRef\": \"\\u002fsites\\u002fprb\\u002fPublicCommentEmailsPDF\\u002fOpenRecordsLaw_1r71vq4i\",\"",
+        // "http://www.archive.org/sites/prb/PublicCommentEmailsPDF/OpenRecordsLaw_1r71vq4i",
     };
-       
+
     @Override
     protected String[] getValidTestData() {
         return VALID_TEST_DATA;
@@ -129,7 +158,6 @@ public class ExtractorJSTest extends StringExtractorTestBase {
     
     @Override
     protected Extractor makeExtractor() {
-    	
         ExtractorJS result = new ExtractorJS();
         UriErrorLoggerModule ulm = new UnitTestUriLoggerModule();  
         result.setLoggerModule(ulm);

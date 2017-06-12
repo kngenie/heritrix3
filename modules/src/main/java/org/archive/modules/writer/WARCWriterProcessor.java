@@ -37,6 +37,7 @@ import static org.archive.modules.CoreAttributeConstants.A_FTP_CONTROL_CONVERSAT
 import static org.archive.modules.CoreAttributeConstants.A_FTP_FETCH_STATUS;
 import static org.archive.modules.CoreAttributeConstants.A_SOURCE_TAG;
 import static org.archive.modules.CoreAttributeConstants.A_WARC_RESPONSE_HEADERS;
+import static org.archive.modules.CoreAttributeConstants.A_WARC_STATS;
 import static org.archive.modules.CoreAttributeConstants.HEADER_TRUNC;
 import static org.archive.modules.CoreAttributeConstants.LENGTH_TRUNC;
 import static org.archive.modules.CoreAttributeConstants.TIMER_TRUNC;
@@ -104,6 +105,9 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
         Logger.getLogger(WARCWriterProcessor.class.getName());
 
     private ConcurrentMap<String, ConcurrentMap<String, AtomicLong>> stats = new ConcurrentHashMap<String, ConcurrentMap<String, AtomicLong>>();
+    public ConcurrentMap<String, ConcurrentMap<String, AtomicLong>> getStats() {
+        return stats;
+    }
 
     private AtomicLong urlsWritten = new AtomicLong();
     
@@ -208,27 +212,27 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
       
         long t1 = System.currentTimeMillis();
         
+        // Reset writer temp stats so they reflect only this set of records.
+        writer.resetTmpStats();
+        writer.resetTmpRecordLog();
+
         long position = writer.getPosition();
         try {
-            // See if we need to open a new file because we've exceeded maxBytes.
-            // Call to checkFileSize will open new file if we're at maximum for
-            // current file.
+            // Roll over to new warc file if we've exceeded maxBytes.
             writer.checkSize();
             if (writer.getPosition() != position) {
-                // We just closed the file because it was larger than maxBytes.
-                // Add to the totalBytesWritten the size of the first record
-                // in the file, if any.
+                // We rolled over to a new warc and wrote a warcinfo record.
+                // Tally stats and reset temp stats, to avoid including warcinfo
+                // record in stats for current url.
                 setTotalBytesWritten(getTotalBytesWritten() +
                     (writer.getPosition() - position));
+                addStats(writer.getTmpStats());
+                writer.resetTmpStats();
+                writer.resetTmpRecordLog();
+
                 position = writer.getPosition();
             }
-                       
-            // Reset writer temp stats so they reflect only this set of records.
-            // They'll be added to totals below, in finally block, after records
-            // have been written.
-            writer.resetTmpStats();
-            writer.resetTmpRecordLog();
-            
+
             // Write a request, response, and metadata all in the one
             // 'transaction'.
             final URI baseid = getRecordID();
@@ -261,9 +265,19 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
                 getPool().returnFile(writer);
             }
         }
+        // XXX this looks wrong, check should happen *before* writing the
+        // record, the way checkBytesWritten() currently works
         return checkBytesWritten();
     }
     
+    protected Map<String, Map<String, Long>> copyStats(Map<String, Map<String, Long>> orig) {
+        Map<String, Map<String, Long>> copy = new HashMap<String, Map<String, Long>>(orig.size());
+        for (String k: orig.keySet()) {
+            copy.put(k, new HashMap<String, Long>(orig.get(k)));
+        }
+        return copy;
+    }
+
     protected void updateMetadataAfterWrite(final CrawlURI curi,
             WARCWriter writer, long startPosition) {
         if (WARCWriter.getStat(writer.getTmpStats(), WARCWriter.TOTALS, WARCWriter.NUM_RECORDS) > 0l) {
@@ -279,6 +293,8 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
 
         curi.addExtraInfo("warcFilename", writer.getFilenameWithoutOccupiedSuffix());
         curi.addExtraInfo("warcFileOffset", startPosition);
+
+        curi.getData().put(A_WARC_STATS, copyStats(writer.getTmpStats()));
 
         // history for uri-based dedupe
         Map<String,Object>[] history = curi.getFetchHistory();
@@ -397,10 +413,6 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
         // TODO: Use other than ANVL (or rename ANVL as NameValue or
         // use RFC822 (commons-httpclient?).
         ANVLRecord headers = new ANVLRecord();
-        if (curi.getContentDigest() != null) {
-            headers.addLabelValue(HEADER_KEY_PAYLOAD_DIGEST,
-                    curi.getContentDigestSchemeString());
-        }
         headers.addLabelValue(HEADER_KEY_IP, getHostAddress(curi));
 
         URI rid;
@@ -408,6 +420,10 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
         if (curi.isRevisit()) {
             rid = writeRevisit(w, timestamp, HTTP_RESPONSE_MIMETYPE, baseid, curi, headers);
         } else {
+            if (curi.getContentDigest() != null) {
+                headers.addLabelValue(HEADER_KEY_PAYLOAD_DIGEST,
+                        curi.getContentDigestSchemeString());
+            }
             // Check for truncated annotation
             String value = null;
             Collection<String> anno = curi.getAnnotations();
@@ -735,7 +751,7 @@ public class WARCWriterProcessor extends WriterPoolProcessor implements WARCWrit
         Collection<CrawlURI> links = curi.getOutLinks();
         if (links != null && links.size() > 0) {
             for (CrawlURI link: links) {
-                r.addLabelValue("outlink", link.getURI());
+                r.addLabelValue("outlink", link.getURI()+" "+link.getLastHop()+" "+link.getViaContext());
             }
         }
         
