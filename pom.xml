@@ -328,7 +328,7 @@ http://maven.apache.org/guides/mini/guide-m1-m2.html
 				<artifactId>maven-javadoc-plugin</artifactId>
 				<version>2.6.1</version>
 				<configuration>
-					<additionalparam>--allow-script-in-comments</additionalparam>
+					<additionalparam>${javadoc.params}</additionalparam>
 					<source>
 						${basedir}/src/java
 					</source>
@@ -387,5 +387,15 @@ http://maven.apache.org/guides/mini/guide-m1-m2.html
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<build.timestamp>${maven.build.timestamp}</build.timestamp>
+		<javadoc.params></javadoc.params>
 	</properties>
+	<profile>
+		<id>allow-javadoc-javascript</id>
+		<properties>
+			<javadoc.params>--allow-script-in-comments</javadoc.params>
+		</properties>
+		<activation>
+			<jdk>[1.8,)</jdk>
+		</activation>
+	</profile>
 </project>
